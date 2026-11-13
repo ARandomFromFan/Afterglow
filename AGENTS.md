@@ -7,7 +7,7 @@ Guide for coding agents working on Afterglow, a native port of *The Duskbloods* 
 - `lifter/`, `third_party/a64-kit/`: AArch64 to C lifter. `scripts/lift.py` drives it.
 - `host/`: HLE of the Switch 2 OS (`hos_*.c`) and its services (`nn_*.c`).
 - `gpu/vk/`: NVN2 to Vulkan renderer, built as `afterglow_vk.so`. `gpu/vk/eden/` is Eden's shader recompiler, `gpu/vk/sirit/` the SPIR-V emitter. `gpu/vk/VULKAN.md` explains the design.
-- `scripts/`: lift scripts. `scripts/env.py` resolves paths.
+- `scripts/`: lift, build and analysis scripts. `scripts/env.py` resolves paths.
 - `tests/`: `python3 -m unittest tests.test_pac` checks the lifter's PAC lowering.
 
 ## Setup

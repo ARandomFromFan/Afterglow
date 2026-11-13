@@ -1,0 +1,8 @@
+[
+  {
+    "name": "frame-loop",
+    "reason": "nnMain loops the frame step (call at main+0x1e0b8a0, step at main+0x1dc7ed8) with no sleep until async init reaches nvnBootstrapLoader. Each frame dispatches FD4 jobs: SignalLightEvent per waiting worker (main+0x4023534, main+0x478fa50, main+0x4021de8) and BroadcastConditionVariable (main+0x4024894..0x40249a8). The frame count before nvnBootstrapLoader depends on wall time, so these calls vary run to run in both Lichii and the recomp.",
+    "symbols": ["SignalLightEvent", "BroadcastConditionVariable"],
+    "lrs": ["0x84023538", "0x8478fa54", "0x84021dec", "0x84024898", "0x840248dc", "0x84024920", "0x84024964", "0x840249ac"]
+  }
+]
