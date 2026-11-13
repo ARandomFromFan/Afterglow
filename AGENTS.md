@@ -5,7 +5,7 @@ Guide for coding agents working on Afterglow, a native port of *The Duskbloods* 
 ## Layout
 
 - `lifter/`, `third_party/a64-kit/`: AArch64 to C lifter. `scripts/lift.py` drives it.
-- `host/`: HLE of the Switch 2 OS (`hos_*.c`).
+- `host/`: HLE of the Switch 2 OS (`hos_*.c`) and its services (`nn_*.c`).
 - `scripts/`: lift scripts. `scripts/env.py` resolves paths.
 - `tests/`: `python3 -m unittest tests.test_pac` checks the lifter's PAC lowering.
 
@@ -25,6 +25,7 @@ Common host knobs: `HOS_PROFILE`.
 
 ## Rules
 
+- Online stays local. Sockets are forced to 127.0.0.1 and port 443 maps to 18443 (`host/nn_socket.c`). Do not weaken either.
 - New behaviour goes behind an environment knob that is off by default until it is proven, then becomes the default in its own change.
 - Performance claims need interleaved A/B runs (at least 3 + 3) on the same build, with pooled fps and GPU time. One run against an older baseline is not a result.
 - Verify visual claims against the Switch 2 original before calling a difference cosmetic or a bug.

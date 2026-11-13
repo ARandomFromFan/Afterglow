@@ -32,3 +32,10 @@ This project is licensed under the GNU General Public License, version 3 or (at 
 - Components referenced:
   - Native Switch recompilation workflow.
 
+
+## OpenSSL
+- Source: https://github.com/openssl/openssl
+- License: Apache License 2.0
+- Components used: the host's `libssl`/`libcrypto` (found with `pkg-config openssl`, linked by `scripts/build.py`) as the TLS implementation behind the `nn::ssl` HLEs in `host/nn_ssl.c`.
+- Notice: OpenSSL is linked, not vendored or modified. It is used only for the game's own client connections to loopback test servers, with this project's test CA; the system trust store is never loaded.
+
