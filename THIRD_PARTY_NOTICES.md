@@ -25,3 +25,10 @@ This project is licensed under the GNU General Public License, version 3 or (at 
   - Fiber and delegate null safety patterns (`runtime/hle/delegate_null.c`).
 - Notice: Used as a secondary MIT reference. NVN1 assumptions from LASRecomp are not applied to the Switch 2 NVN2 path.
 
+
+## SavageWindRecomp
+- Source: https://github.com/Revivedx/SavageWindRecomp
+- License: MIT License
+- Components referenced:
+  - Native Switch recompilation workflow.
+

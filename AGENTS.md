@@ -5,6 +5,7 @@ Guide for coding agents working on Afterglow, a native port of *The Duskbloods* 
 ## Layout
 
 - `lifter/`, `third_party/a64-kit/`: AArch64 to C lifter. `scripts/lift.py` drives it.
+- `host/`: HLE of the Switch 2 OS (`hos_*.c`).
 - `scripts/`: lift scripts. `scripts/env.py` resolves paths.
 - `tests/`: `python3 -m unittest tests.test_pac` checks the lifter's PAC lowering.
 
@@ -17,6 +18,10 @@ You need clang, lld, pkg-config and Python 3 with the `lz4` package (the lifter 
 ## Build
 
 - `scripts/lift.py` regenerates all lifted C and is slow. Rerun it only after a lifter change.
+
+## Debugging
+
+Common host knobs: `HOS_PROFILE`.
 
 ## Rules
 

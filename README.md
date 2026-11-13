@@ -11,6 +11,7 @@ Linux comes first. Windows is planned once Linux is in good shape.
 | Part | Where | What it does |
 |------|-------|--------------|
 | Lifter | `lifter/`, `third_party/a64-kit/` | Turns the game's executables into C |
+| Host runtime | `host/` | HLE of the Switch 2 OS services: memory, threads, filesystem |
 
 ## Requirements
 
