@@ -18,11 +18,30 @@ You need clang, lld, pkg-config and Python 3 with the `lz4` package (the lifter 
 
 ## Build
 
+```sh
+python3 scripts/build_vk.py   # afterglow_vk.so
+python3 scripts/build.py      # duskbloods_game
+```
+
+- "Successfully linked" is the only success signal. A failed link prints `*** LINK FAILED ***` and leaves the old binary in place, so a run after it tests stale code. Check the banner every time.
+- Without lld the error is `invalid linker name in argument '-fuse-ld=lld'`; do not drop `-fuse-ld=lld`.
+- Touching the shader translator (`gpu/vk/eden/`, `gpu/vk/sirit/`) rebuilds most of the renderer's objects.
 - `scripts/lift.py` regenerates all lifted C and is slow. Rerun it only after a lifter change.
 
 ## Shader program cache
 
 The renderer caches translated programs in the work dir (`afterglow_programs.bin`, `.idx`, `afterglow_vk_pipelines.bin`). For a visual A/B after translator changes, move the three files aside first.
+
+## Running
+
+```sh
+$WORK_DIR/duskbloods_game $WORK_DIR/sa/image/image.bin --romfs $GAME_DIR/romfs --user $WORK_DIR/user
+```
+
+- The game never exits on its own. Run it in the background with a time budget (about 5 minutes), never in the foreground, and never stream its stdout into your context. Kill it when the budget runs out.
+- `HOS_AUDIO=0` runs without sound. Headless runs work under `gamescope --backend headless --expose-wayland -W 1920 -H 1080 --`.
+- One game per GPU at a time, and do not build on a machine while a run there is being measured.
+- Renderer screenshots are `RX_VK_SHOT_W`x`RX_VK_SHOT_H` (default 1280x720) whatever the window size; check the `vk: swapchain` log line for the real size.
 
 ## Debugging
 
@@ -34,6 +53,7 @@ Most diagnostics are environment knobs, read with `getenv` and off by default. G
 
 ## Rules
 
+- No game code, game data, keys or generated C in git. Run `scripts/check_content.sh` before committing.
 - Online stays local. Sockets are forced to 127.0.0.1 and port 443 maps to 18443 (`host/nn_socket.c`). Do not weaken either.
 - New behaviour goes behind an environment knob that is off by default until it is proven, then becomes the default in its own change.
 - Performance claims need interleaved A/B runs (at least 3 + 3) on the same build, with pooled fps and GPU time. One run against an older baseline is not a result.

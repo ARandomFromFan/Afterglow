@@ -23,6 +23,7 @@ Known issues:
 | Lifter | `lifter/`, `third_party/a64-kit/` | Turns the game's executables into C |
 | Host runtime | `host/` | HLE of the Switch 2 OS services: memory, threads, filesystem, audio, input, network |
 | Renderer | `gpu/vk/` | NVN2 to Vulkan, with Eden's shader recompiler for Maxwell/Ampere shaders to SPIR-V |
+| Build scripts | `scripts/` | Lifting, compiling and linking |
 
 ## Requirements
 
@@ -30,6 +31,31 @@ Known issues:
 - A Vulkan driver with `VK_EXT_mesh_shader` and `VK_EXT_external_memory_host`
 - clang, lld, Python 3, pkg-config
 - Your own dump of the game: `exefs` and `romfs`
+
+## Building
+
+Paths come from `scripts/.env`. Copy `scripts/.env.example` to `scripts/.env` and set `WORK_DIR`, `GAME_DIR` (with `exefs/` and `romfs/` inside) and `LIFTER_KIT_DIR`. Unset keys fall back to `work/` and `game/` inside the repo, and every script flag (`--work`, `--exefs`, ...) still overrides them.
+
+```sh
+# 1. Lift the game's executables to C (reads GAME_DIR/exefs)
+python3 scripts/lift.py
+
+# 2. Build the Vulkan renderer (afterglow_vk.so)
+python3 scripts/build_vk.py
+
+# 3. Build the game executable (duskbloods_game)
+python3 scripts/build.py
+```
+
+"Successfully linked" at the end of step 3 means it worked. A failed link prints `*** LINK FAILED ***` and leaves the old binary in place.
+
+## Running
+
+```sh
+$WORK_DIR/duskbloods_game $WORK_DIR/sa/image/image.bin   --romfs $GAME_DIR/romfs --user $WORK_DIR/user
+```
+
+Set `HOS_AUDIO=0` to run without sound. Online features need a CA at `pki/ca.der` in the working directory, or `HOS_NPLN_CA=/path/to/ca.der`.
 
 ## Contributing
 
@@ -44,7 +70,7 @@ Coding agents should read `AGENTS.md` first.
 
 ## Legal
 
-You must own the game and dump it yourself. Do not open issues or pull requests that contain game files, keys or generated C.
+You must own the game and dump it yourself. Do not open issues or pull requests that contain game files, keys or generated C. `scripts/check_content.sh` checks the tree for them.
 
 Licensed under GPL-3.0-or-later; see `LICENSE`. Third-party code and its licenses are listed in `THIRD_PARTY_NOTICES.md`.
 

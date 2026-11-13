@@ -1,0 +1,30 @@
+# Build and generated files
+build/
+work/
+gen/
+code_*.c
+code_*.h
+*.o
+*.a
+*.so
+result*
+__pycache__/
+*.pyc
+
+# Game data and keys
+*.nup
+*.nso
+*.bin
+*.dcx
+*.bnd*
+*.keys
+*.save
+*.dump
+*.disasm
+exefs/
+romfs/
+
+# Local settings and reference checkouts
+scripts/.env
+references/
+*.so.sha1
