@@ -6,6 +6,25 @@ Linux comes first. Windows is planned once Linux is in good shape.
 
 **This repository contains no game code or data.** You need your own dump of the game.
 
+## How it works
+
+| Part | Where | What it does |
+|------|-------|--------------|
+| Lifter | `lifter/`, `third_party/a64-kit/` | Turns the game's executables into C |
+
+## Requirements
+
+- Linux on x86-64
+- clang, lld, Python 3, pkg-config
+- Python 3 with the `lz4` package
+- Your own dump of the game: `exefs` and `romfs`
+
+## Lifting
+
+```sh
+python3 scripts/lift.py
+```
+
 ## Contributing
 
 Help is welcome and really appreciated, whether it's code, testing or bug reports.
