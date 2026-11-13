@@ -26,6 +26,21 @@ This project is licensed under the GNU General Public License, version 3 or (at 
 - Notice: Used as a secondary MIT reference. NVN1 assumptions from LASRecomp are not applied to the Switch 2 NVN2 path.
 
 
+## Suyu (Texture Decoders)
+- Source: https://gitlab.com/suyu-emu/suyu
+- License: GNU General Public License v2.0-or-later / v3.0-or-later
+- Components referenced / adapted:
+  - ASTC and BCN texture decompression and Tegra GOB swizzle routines vendored in `gpu/third_party/suyu/video_core/textures/` and `gpu/third_party/suyu/common/`.
+  - The duplicate `gpu/third_party/suyu/shader_recompiler` was deleted in favour of the canonical Eden recompiler in `gpu/vk/eden/`.
+
+
+## totk-pc-recomp
+- Source: https://github.com/valentderah/totk-pc-recomp
+- License: MIT License
+- Components referenced:
+  - Static recompilation architecture and pipeline design.
+
+
 ## SavageWindRecomp
 - Source: https://github.com/Revivedx/SavageWindRecomp
 - License: MIT License
