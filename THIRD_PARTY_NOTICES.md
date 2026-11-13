@@ -26,6 +26,16 @@ This project is licensed under the GNU General Public License, version 3 or (at 
 - Notice: Used as a secondary MIT reference. NVN1 assumptions from LASRecomp are not applied to the Switch 2 NVN2 path.
 
 
+## Lichii
+- Source: https://github.com/zortos293/Lichii
+- Pinned Commit: `d2eaae4f3abca636b030b726f107bace06f61079` (source archive https://github.com/zortos293/Lichii/archive/d2eaae4f3abca636b030b726f107bace06f61079.tar.gz, the one the reference Lichii build uses)
+- License: GNU General Public License v3.0 (GPL-3.0-or-later)
+- Components copied from `src/shader_recompiler/frontend/ampere/` into `gpu/vk/eden/shader_recompiler/frontend/ampere/`:
+  - Unchanged (byte-identical to d2eaae4, checked with `diff`): `geometry_exit.h`, `instruction.h`, `program_address_map.h`, `program_capture.h`, `program_override.h`, `register_pressure.h`, `trap_guards.h`.
+  - Modified: `lower_to_maxwell.h`. Hookshot additions are marked `(hookshot)`; additions made in this repository are marked `(afterglow)`: the `native_matrix_multiply` flag (HMMA.16816 lowers to one HMMA_nx2 word when the cooperative matrix self-test passed) and a `register_map_words` field that this lowering leaves at 0 (Hookshot's REGMAP_nx2 register renaming is not ported).
+  - This includes the lowering of opcode 0x34e ("native program counter load", geometry stage only, d2eaae4 `lower_to_maxwell.h` line 3870) and opcodes 0x845 / 0x906 ("native immediate integer-to-float conversion", 0x906 rounding up, d2eaae4 `lower_to_maxwell.h` line 3220), along with SULD 0x998, SUST 0x99c, ISBERD 0x923 and ALD 0x321.
+
+
 ## Suyu (Texture Decoders)
 - Source: https://gitlab.com/suyu-emu/suyu
 - License: GNU General Public License v2.0-or-later / v3.0-or-later
