@@ -6,25 +6,30 @@ Linux comes first. Windows is planned once Linux is in good shape.
 
 **This repository contains no game code or data.** You need your own dump of the game.
 
+## Status
+
+Work in progress. The game boots, reaches the title menu and plays in-game.
+
+Known issues:
+
+- Hatching-like stripes on some walls.
+- Menu text shows overlapping ghost letters after the language is changed while the game runs. Text is correct when the game starts in that language.
+- For now performance is CPU-bound, around 40 fps in heavy scenes; the target is 60.
+
 ## How it works
 
 | Part | Where | What it does |
 |------|-------|--------------|
 | Lifter | `lifter/`, `third_party/a64-kit/` | Turns the game's executables into C |
 | Host runtime | `host/` | HLE of the Switch 2 OS services: memory, threads, filesystem, audio, input, network |
+| Renderer | `gpu/vk/` | NVN2 to Vulkan, with Eden's shader recompiler for Maxwell/Ampere shaders to SPIR-V |
 
 ## Requirements
 
 - Linux on x86-64
+- A Vulkan driver with `VK_EXT_mesh_shader` and `VK_EXT_external_memory_host`
 - clang, lld, Python 3, pkg-config
-- Python 3 with the `lz4` package
 - Your own dump of the game: `exefs` and `romfs`
-
-## Lifting
-
-```sh
-python3 scripts/lift.py
-```
 
 ## Contributing
 
