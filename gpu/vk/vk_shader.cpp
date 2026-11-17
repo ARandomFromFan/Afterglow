@@ -946,8 +946,9 @@ uint64_t disk_stamp() {
     const auto add = [&h](const void* d, size_t n) {
         for (size_t i = 0; i < n; i++) h = (h ^ ((const uint8_t*)d)[i]) * 1099511628211ull;
     };
-    // (what translates shaders, nx2/build.py: a rebuild of anything else keeps the cache. It was the DLL's bytes, and every build
-    // lost it)
+    // (build_vk.py hashes the translator's sources into AFTERGLOW_SHADER_STAMP, so only a translator change drops the cache)
+    const uint64_t translator = AFTERGLOW_SHADER_STAMP;
+    add(&translator, sizeof translator);
     const uint32_t depth = host->depth_minus_w() != 0;   // (d3zessete's PR 54: programs made in either depth mode are kept apart)
     add(&depth, sizeof depth);
     // (and a GPU's mesh shaders: a file of native task and mesh programs is no use to the compute fallback, nor its to one)
@@ -1017,7 +1018,12 @@ void disk_init() {
             _fseeki64(f, 0, SEEK_SET);
             uint32_t head[2]{};
             uint64_t kept = 0;
-            if (whole >= 16 && fread(head, 4, 2, f) == 2 && fread(&kept, 8, 1, f) == 1 && head[0] == kDiskMagic && kept == stamp) {
+            const bool head_read = whole >= 16 && fread(head, 4, 2, f) == 2 && fread(&kept, 8, 1, f) == 1;
+            // (log a cache from another translator instead of dropping it silently)
+            if (head_read && head[0] == kDiskMagic && kept != stamp)
+                logf("vk: program cache %s: made by another translator (stamp %016llx, this one %016llx): %lld KB start again",
+                     path.c_str(), (unsigned long long)kept, (unsigned long long)stamp, (long long)(whole >> 10));
+            if (head_read && head[0] == kDiskMagic && kept == stamp) {
                 good = 16;
                 size_t idx_n = 0;
                 bool idx_short = false;   // (it named records the file does not have whole)

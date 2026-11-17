@@ -30,7 +30,7 @@ python3 scripts/build.py      # duskbloods_game
 
 ## Shader program cache
 
-The renderer caches translated programs in the work dir (`afterglow_programs.bin`, `.idx`, `afterglow_vk_pipelines.bin`). For a visual A/B after translator changes, move the three files aside first.
+The renderer caches translated programs in the work dir (`afterglow_programs.bin`, `.idx`, `afterglow_vk_pipelines.bin`). The cache stamp hashes the translator sources, and the log says when a cache is refused. For a visual A/B after translator changes, move the three files aside first.
 
 ## Running
 

@@ -2,11 +2,48 @@
 """Build Afterglow Vulkan renderer shared library (afterglow_vk.so)."""
 import argparse
 import concurrent.futures
+import hashlib
 import os
 import subprocess
 import sys
 import time
 import env
+
+# (AFTERGLOW_SHADER_STAMP keys the on-disk program cache; hashed from the translator so a stale cache is refused)
+TRANSLATOR_DIRS = (("gpu", "vk"), ("gpu", "compat"), ("host", "posix"), ("third_party", "stb"),
+                   ("third_party", "suyu", "video_core", "textures"))
+TRANSLATOR_SUFFIXES = (".cpp", ".cc", ".c", ".h", ".hpp", ".hh", ".inl", ".inc", ".hxx")
+
+def translator_sources(repo):
+    """Translator sources and headers, sorted by repo-relative path."""
+    files = []
+    for sub in TRANSLATOR_DIRS:
+        for d, dirs, names in os.walk(os.path.join(repo, *sub)):
+            dirs[:] = sorted(x for x in dirs if x != "__pycache__")
+            files += [os.path.join(d, f) for f in names if f.endswith(TRANSLATOR_SUFFIXES)]
+    files.sort(key=lambda f: os.path.relpath(f, repo).replace(os.sep, "/"))
+    return files
+
+def translator_stamp(repo, flags=()):
+    """(stamp, files, bytes): first 8 bytes of sha256 over the flags and each source's path, size and contents."""
+    files = translator_sources(repo)
+    h = hashlib.sha256()
+    h.update(b"flags\x00" + "\n".join(flags).encode() + b"\x00")
+    total = 0
+    for f in files:
+        with open(f, "rb") as fh:
+            data = fh.read()
+        h.update(os.path.relpath(f, repo).replace(os.sep, "/").encode())
+        h.update(b"\x00" + len(data).to_bytes(8, "little") + b"\x00")
+        h.update(data)
+        total += len(data)
+    return int.from_bytes(h.digest()[:8], "little"), len(files), total
+
+def stamp_flags(flags, repo):
+    """Code-changing flags only: drop include paths, the prefix map and the stamp itself, so tree location does not matter."""
+    root = os.path.abspath(repo)
+    return [f.replace(root, "src") for f in flags
+            if not f.startswith(("-I", "-DAFTERGLOW_SHADER_STAMP", "-ffile-prefix-map"))]
 
 def parse_args():
     p = argparse.ArgumentParser(description="Compile Afterglow Vulkan backend (afterglow_vk.so)")
@@ -14,6 +51,8 @@ def parse_args():
     p.add_argument("--work", default=env.WORK_DIR)
     p.add_argument("--jobs", "-j", type=int, default=12)
     p.add_argument("--force", action="store_true")
+    p.add_argument("--stamp", default=None,
+                   help="shader stamp to build with, hex or decimal (default: hashed from the translator's sources)")
     return p.parse_args()
 
 def get_nix_paths():
@@ -118,9 +157,17 @@ def main():
         "clang++", "-std=c++20", "-O2", "-g0", "-fPIC",
         "-ffile-prefix-map=" + os.path.abspath(args.repo) + "=src",
         "-D_GNU_SOURCE", "-DVK_NO_PROTOTYPES", "-DAGVK_BUILDING",
-        "-DAGVK_INCLUDES=2", "-DAFTERGLOW_SHADER_STAMP=0x12345678ull",
+        "-DAGVK_INCLUDES=2",
         "-DNDEBUG", "-Wno-everything"
     ] + includes
+    stamp, stamp_files, stamp_bytes = translator_stamp(args.repo, stamp_flags(cxx_flags, args.repo))
+    if args.stamp:
+        print(f"shader stamp 0x{int(args.stamp, 0):016x} (given; the translator's {stamp_files} sources and its flags "
+              f"hash to 0x{stamp:016x})")
+        stamp = int(args.stamp, 0)
+    else:
+        print(f"shader stamp 0x{stamp:016x} (the translator's {stamp_files} sources, {stamp_bytes} bytes, and its flags)")
+    cxx_flags.append(f"-DAFTERGLOW_SHADER_STAMP=0x{stamp:016x}ull")
 
     c_flags = [
         "clang", "-O2", "-g0", "-fPIC", "-D_GNU_SOURCE", "-Wno-everything",
