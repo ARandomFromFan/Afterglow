@@ -15,7 +15,7 @@ NotRexed's AArch64 kit, vendored as the core of this project's lifter (`lifter/`
 | `lift/a64_lift.py` | The lifter: functions, control flow, jump tables, PLT, calls |
 | `lift/a64emit.cpp`, `build_emit.py`, `a64emit.py` | suyu's per-instruction translator as a shared library and its ctypes binding |
 | `lift/a64_rtgen.py` | Writes suyu's FP helpers and runtime pieces, adapted to `rt/a64.h`, next to the lifted code |
-| `lift/suyu/` | `arm64_to_c.h` with its licenses |
+| `lift/suyu/` | `arm64_to_c.h` with its licenses, plus this project's hardware FMA path (`HOS_FAST_FMA`) |
 | `rt/a64.h` | The guest model the lifted code sees |
 | `rt/a64_rt.c` | Dispatch, indirect calls and jumps, traps, exclusive monitor, CNTPCT |
 | `tests/insn_test.py` | Every instruction form a game uses, Unicorn vs lifted C |
