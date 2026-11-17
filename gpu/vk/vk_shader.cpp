@@ -464,7 +464,11 @@ public:
     }
     u32 SharedMemorySize() const override {
         static const bool old = getenv("RX_VK_SHARED_48K") != nullptr;
-        return old ? 48u << 10 : nvn.shared_memory;
+        if (old) return 48u << 10;
+        uint32_t sm = nvn.shared_memory;
+        if (sm == 0) sm = 32u << 10;
+        else if (sm <= 64) sm <<= 10;
+        return sm;
     }
     std::array<u32, 3> WorkgroupSize() const override {
         return {std::max(1u, nvn.local[0]), std::max(1u, nvn.local[1]), std::max(1u, nvn.local[2])};
@@ -952,6 +956,7 @@ uint64_t disk_stamp() {
     // (the records keep Shader::Info as it lies in memory: a cache written by another C++ library (the MSVC build's, then the
     // llvm-mingw one's libc++) has other layouts, and reading it crashed at start. The library and the sizes, so it starts again)
     const uint32_t abi[] = {(uint32_t)sizeof(Shader::Info), (uint32_t)sizeof(Program), (uint32_t)sizeof(std::vector<uint32_t>),
+                            (uint32_t)sizeof(Shader::TextureDescriptor),
 #if defined(_LIBCPP_VERSION)
                             1u, (uint32_t)_LIBCPP_VERSION
 #elif defined(_MSVC_STL_VERSION)
