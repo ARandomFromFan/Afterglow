@@ -69,6 +69,16 @@ static volatile LONG vmap_gen = 1;           /* bumped when a map is added or re
 static volatile LONG vpage_gen = 1;          /* bumped by every virtual page (re)mapping too (the renderer's caches) */
 uint32_t nvn_vmap_generation(void) { return (uint32_t)vpage_gen + (uint32_t)vmap_gen; }
 static uint64_t next_vbase = VBASE;
+int nvn_gpu_vmaps(AgVkVmap *out, int max) {
+    int n = 0;
+    AcquireSRWLockShared(&vmap_lock);
+    for (struct nvn_vmap *m = vmaps; m && n < max; m = m->next) {
+        out[n].gpu = m->gpu; out[n].size = m->size; out[n].pages = m->page; n++;
+    }
+    ReleaseSRWLockShared(&vmap_lock);
+    return n;
+}
+
 static struct nvn_vmap *vmap_find(uint64_t gpu) {
     static _Thread_local struct nvn_vmap *last;
     static _Thread_local LONG last_gen;
@@ -265,6 +275,13 @@ NV(nvnMemoryPoolInitialize) {
         m->gpu = next_vbase;
         m->size = o->size;
         next_vbase += (o->size + VPAGE - 1) & ~(VPAGE - 1);
+        if (next_vbase > VBASE + (4ull << 30)) {
+            static int warned = 0;
+            if (!warned) {
+                warned = 1;
+                hos_log("nvn: WARNING: next_vbase passed VBASE + 4 GB (%#llx)", (unsigned long long)next_vbase);
+            }
+        }
         m->next = vmaps;
         vmaps = m;
         InterlockedIncrement(&vmap_gen);

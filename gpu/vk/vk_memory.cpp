@@ -80,6 +80,7 @@ Pool* last_pool = nullptr;            // (the last pool_of hit: draws in a row b
 extern Pool* pool_cache[4096];
 void retire_pool(std::map<uint64_t, Pool>::iterator it);
 Pool* pool_lookup(uint64_t guest, uint64_t size);
+Pool* pool_of(uint64_t guest, uint64_t size);
 struct SrwMutex {   // (a slim reader/writer lock: half std::mutex's cost, taken for every buffer a draw binds)
     SRWLOCK l = SRWLOCK_INIT;
     void lock() { AcquireSRWLockExclusive(&l); }
@@ -443,8 +444,12 @@ void guest_pages_set(uint64_t lo, uint64_t hi, uint64_t address) {
     // 0-1 bright / 4 dark in two 40 s Kokiri runs, as many as without it, and the same fps. One earlier run with 21 dark ones was
     // the runs' spread, not this. RX_VK_TABLE_NOW=1: written at once, as before)
     static const bool now = getenv("RX_VK_TABLE_NOW") != nullptr;
-    // (two windows, as spirv_emit_context.cpp reads them: 8 GB from 0x1000000000, then 4 GB from 0x7f00000000)
-    const struct { uint64_t base, bytes, first; } windows[] = {{0x1000000000ull, 8ull << 30, 0}, {0x7f00000000ull, 4ull << 30, (8ull << 30) >> 12}};
+    // Three windows: 8 GB from 0x1000000000, 4 GB from 0x7f00000000, 4 GB from 0x10000000000.
+    const struct { uint64_t base, bytes, first; } windows[] = {
+        {0x1000000000ull, 8ull << 30, 0},
+        {0x7f00000000ull, 4ull << 30, (8ull << 30) >> 12},
+        {0x10000000000ull, 4ull << 30, ((8ull << 30) + (4ull << 30)) >> 12}
+    };
     for (const auto& w : windows) {
         const uint64_t a0 = std::max(lo, w.base) & ~0xFFFull, a1 = std::min(hi, w.base + w.bytes);
         if (a0 >= a1) continue;
@@ -457,6 +462,52 @@ void guest_pages_set(uint64_t lo, uint64_t hi, uint64_t address) {
         for (uint64_t i = 0; i < count; i++) guest_pages[first + i] = at ? at + (i << 12) : 0;
     }
 }
+void sync_vmap_pages_locked() {
+    if (!guest_pages || !host || !host->gpu_vmaps) return;
+    static uint32_t last_vgen = 0;
+    static uint64_t last_pgen = 0;
+    const uint32_t vg = host->vmap_generation ? host->vmap_generation() : 0;
+    const uint64_t pg = guest_pools_gen.load(std::memory_order_relaxed);
+    if (vg == last_vgen && pg == last_pgen) return;
+    last_vgen = vg;
+    last_pgen = pg;
+
+    AgVkVmap vm[128];
+    const int count = host->gpu_vmaps(vm, 128);
+    if (count >= 128) {
+        static bool logged_trunc = false;
+        if (!logged_trunc) {
+            logged_trunc = true;
+            logf("vk: WARNING: vmaps truncated at 128\n");
+        }
+    }
+    for (int i = 0; i < count; i++) {
+        const uint64_t vbase = vm[i].gpu;
+        const uint64_t npages = vm[i].size / 0x10000ull;
+        uint64_t run_vlo = 0, run_vhi = 0, run_dev = 0;
+        for (uint64_t k = 0; k < npages; k++) {
+            const uint64_t vlo = vbase + k * 0x10000ull;
+            const uint64_t vhi = vlo + 0x10000ull;
+            const uint64_t g = vm[i].pages[k];
+            uint64_t dev_addr = 0;
+            if (g) {
+                Pool* p = pool_of(g, 0x10000);
+                if (p && p->address && g >= p->lo && g < p->hi) dev_addr = p->address + (g - p->lo);
+            }
+            if (run_vhi == vlo && ((run_dev == 0 && dev_addr == 0) || (run_dev != 0 && dev_addr == run_dev + (vlo - run_vlo)))) {
+                run_vhi = vhi;
+            } else {
+                if (run_vhi > run_vlo) guest_pages_set(run_vlo, run_vhi, run_dev);
+                run_vlo = vlo; run_vhi = vhi; run_dev = dev_addr;
+            }
+        }
+        if (run_vhi > run_vlo) guest_pages_set(run_vlo, run_vhi, run_dev);
+    }
+}
+void sync_vmap_pages() {
+    std::lock_guard pk(pools_mu);
+    sync_vmap_pages_locked();
+}
 void memory_table_begin() {
     if (!table_pending.empty()) {   // (left by a recording that never ended: written now)
         table_defer = false;
@@ -465,10 +516,12 @@ void memory_table_begin() {
         table_pending.clear();
     }
     table_defer = guest_pages != nullptr;
+    sync_vmap_pages();
 }
 // (at the end of the recording's uploads: the changes, the last one for each page, as transfers into the table; the
 // upload command buffer's barriers order them after the work submitted before and before this submission's)
 bool memory_table_flush() {
+    sync_vmap_pages();
     table_defer = false;
     if (table_pending.empty()) return false;
     std::vector<std::pair<uint64_t, uint64_t>> pages;   // (page, value), in the order they were set
@@ -505,7 +558,7 @@ uint64_t memory_guest_pages() {
     VkBuffer b = VK_NULL_HANDLE;
     VmaAllocation a = nullptr;
     void* mapped = nullptr;
-    const uint64_t bytes = ((8ull << 30 >> 12) + (4ull << 30 >> 12)) * 8;
+    const uint64_t bytes = ((8ull << 30 >> 12) + (4ull << 30 >> 12) + (4ull << 30 >> 12)) * 8;
     if (!create_buffer(bytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                        true, b, a, &mapped, true) || !mapped) {
         logf("vk: no page table of guest memory: pointers in no bound buffer read as 0");
@@ -519,7 +572,9 @@ uint64_t memory_guest_pages() {
     std::lock_guard pk(pools_mu);
     guest_pages = (uint64_t*)mapped;
     for (auto& kv : imported) guest_pages_set(kv.second.lo, kv.second.hi, kv.second.address);
-    logf("vk: page table of guest memory at %#llx (%zu pools)", (unsigned long long)guest_pages_address, imported.size());
+    sync_vmap_pages_locked();
+    logf("vk: page table of guest memory at %#llx (%zu pools, table size %llu MB)",
+         (unsigned long long)guest_pages_address, imported.size(), (unsigned long long)(bytes >> 20));
     return guest_pages_address;
 }
 
@@ -1990,6 +2045,7 @@ void retire_pool(std::map<uint64_t, Pool>::iterator it) {
     static const bool no_inherit = getenv("RX_VK_NO_INHERIT") != nullptr;
     if (old->mstate == Pool::MIRROR_ON && !no_inherit) old->inherit_pending = true, old->retired_epoch = mirror_epoch;
     pools_gen++;
+    guest_pools_gen.fetch_add(1, std::memory_order_relaxed);
     retired_pools.push_back(imported.extract(it));
     last_pool = nullptr;
     std::fill(std::begin(pool_cache), std::end(pool_cache), nullptr);

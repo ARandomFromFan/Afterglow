@@ -49,6 +49,7 @@ int nvn_depth_minus_w(void);
 int hos_gpu_pools(uint64_t (*out)[2], int max);
 uint32_t hos_gpu_maps_generation(void);
 uint32_t nvn_vmap_generation(void);
+int nvn_gpu_vmaps(AgVkVmap *out, int max);
 uint64_t hos_reserved_cpus(void);   /* hos_thread.c */
 extern float hos_aspect_ratio;      /* hos_main.c: the guest camera aspect applied at startup, or 0 */
 uint32_t hos_pad_raw(void);         /* nn_hid.c: the gamepads and the controls, for the Insert menu */
@@ -156,7 +157,7 @@ static const AgVkHost vk_host = {
     nvn_tex_level_offset, nvn_fmt_bpb, nvn_tex_level_tiles, nvn_tex_linear_stride, nvn_depth_minus_w, hos_gpu_pools,
     hos_gpu_maps_generation, nvn_vmap_generation, hos_reserved_cpus, host_collect_in, host_guest_alloc,
     host_watch_guest_writes, hos_pad_raw, hos_binding, hos_bind, host_aspect_ratio, host_take_key_press,
-    hos_mouse_pointer,
+    hos_mouse_pointer, nvn_gpu_vmaps,
 };
 
 static const AgVkRenderer *vk;   /* the Vulkan back end, when it was chosen and started */

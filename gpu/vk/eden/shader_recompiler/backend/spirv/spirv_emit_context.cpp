@@ -1066,6 +1066,9 @@ constexpr unsigned long long kGuestPagesBytes = 8ull << 30;
 // buffers are. Pointers there read 0 with the first alone)
 constexpr unsigned long long kGuestPagesBase2 = 0x7f00000000ull;
 constexpr unsigned long long kGuestPagesBytes2 = 4ull << 30;
+// Third window: NVN virtual pools at 0x10000000000 (1 TB).
+constexpr unsigned long long kGuestPagesBase3 = 0x10000000000ull;
+constexpr unsigned long long kGuestPagesBytes3 = 4ull << 30;
 
 void EmitContext::DefineGlobalMemoryFunctions(const Info& info) {
     if (!info.uses_global_memory || !profile.support_int64) {
@@ -1138,12 +1141,17 @@ void EmitContext::DefineGlobalMemoryFunctions(const Info& info) {
                            : Constant(U64, u64{0})};   // (pushed: the table's device address, 0 for none)
         const Id offset_a{OpISub(U64, addr, Constant(U64, u64{kGuestPagesBase}))};
         const Id offset_b{OpISub(U64, addr, Constant(U64, u64{kGuestPagesBase2}))};
+        const Id offset_c{OpISub(U64, addr, Constant(U64, u64{kGuestPagesBase3}))};
         const Id in_a{OpULessThan(U1, offset_a, Constant(U64, u64{kGuestPagesBytes}))};
         const Id in_b{OpULessThan(U1, offset_b, Constant(U64, u64{kGuestPagesBytes2}))};
+        const Id in_c{OpULessThan(U1, offset_c, Constant(U64, u64{kGuestPagesBytes3}))};
+        const Id page_idx_b{OpIAdd(U64, OpShiftRightLogical(U64, offset_b, Const(12U)), Constant(U64, u64{kGuestPagesBytes >> 12}))};
+        const Id page_idx_c{OpIAdd(U64, OpShiftRightLogical(U64, offset_c, Const(12U)), Constant(U64, u64{(kGuestPagesBytes + kGuestPagesBytes2) >> 12}))};
         const Id page_index{OpSelect(U64, in_a, OpShiftRightLogical(U64, offset_a, Const(12U)),
-                                     OpIAdd(U64, OpShiftRightLogical(U64, offset_b, Const(12U)), Constant(U64, u64{kGuestPagesBytes >> 12})))};
+                                     OpSelect(U64, in_b, page_idx_b, page_idx_c))};
         const Id fits{OpULessThanEqual(U1, OpBitwiseAnd(U64, addr, Constant(U64, u64{0xfff})), Constant(U64, u64{0x1000 - size}))};
-        const Id inside{OpLogicalAnd(U1, OpLogicalAnd(U1, OpLogicalOr(U1, in_a, in_b), OpINotEqual(U1, table, Constant(U64, u64{0}))), fits)};
+        const Id in_any{OpLogicalOr(U1, OpLogicalOr(U1, in_a, in_b), in_c)};
+        const Id inside{OpLogicalAnd(U1, OpLogicalAnd(U1, in_any, OpINotEqual(U1, table, Constant(U64, u64{0}))), fits)};
         const Id then_label{OpLabel()};
         const Id else_label{OpLabel()};
         OpSelectionMerge(else_label, spv::SelectionControlMask::MaskNone);

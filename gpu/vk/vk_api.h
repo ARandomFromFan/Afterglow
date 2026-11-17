@@ -98,6 +98,7 @@ typedef struct AgVkHost {
        window and the window has the focus. The Insert menu releases the mouse while it is open: WM_APP + 8 to the
        window, wParam 1 open, 0 closed (the capture it had then comes back) */
     int (*pointer)(AgVkPointer *out);
+    int (*gpu_vmaps)(AgVkVmap *out, int max);
 } AgVkHost;
 
 /* what the back end gives the executable: the rx_* functions (gpu/render/rx_nvn.h, rx_core) */

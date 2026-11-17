@@ -52,6 +52,7 @@ typedef struct { uint32_t magic; uint64_t submits; } nvn_queue;
 /* a memory pool: mem = host pointer of its storage (null: a virtual pool), gpu = its GPU address */
 typedef struct { void *dev; uint64_t mem; uint64_t size; uint32_t flags; } nvn_pool_builder;   /* mem: guest address */
 typedef struct nvn_vmap nvn_vmap;
+typedef struct AgVkVmap { uint64_t gpu, size; const uint64_t *pages; } AgVkVmap;
 typedef struct {
     uint32_t magic, flags;
     uint8_t *mem;                         /* host pointer of the storage (null for a virtual pool) */
