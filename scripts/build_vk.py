@@ -38,10 +38,56 @@ def get_nix_paths():
 
 def compile_file(cmd, src, obj):
     t0 = time.time()
+    # drop the old depfile first so a failed compile cannot leave a stale one behind
+    try:
+        os.remove(obj + ".d")
+    except OSError:
+        pass
     res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if res.returncode != 0:
         return False, src, res.stderr or res.stdout, time.time() - t0
     return True, src, None, time.time() - t0
+
+def read_depfile(depfile):
+    """Parse a Makefile-style depfile written by clang -MD -MF."""
+    try:
+        with open(depfile, "r") as f:
+            text = f.read()
+    except OSError:
+        return None
+    text = text.replace("\\\n", " ")
+    if ":" not in text:
+        return None
+    text = text.split(":", 1)[1]
+    text = text.replace("\\ ", "\x00")  # keep escaped spaces inside a path
+    deps = []
+    for dep in text.split():
+        dep = dep.replace("\x00", " ")
+        if len(dep) > 1 and dep[0] == '"' and dep[-1] == '"':
+            dep = dep[1:-1]
+        deps.append(dep)
+    return deps
+
+
+def needs_build(src, obj, force=False):
+    """True when obj must be recompiled: source newer, object missing, depfile
+    missing, or any header listed in the depfile missing or newer than obj."""
+    if force or not os.path.exists(obj):
+        return True
+    if not os.path.exists(src) or os.path.getmtime(src) > os.path.getmtime(obj):
+        return True
+    depfile = obj + ".d"
+    if not os.path.exists(depfile):
+        return True
+    obj_mt = os.path.getmtime(obj)
+    for dep in read_depfile(depfile) or ():
+        try:
+            if os.path.getmtime(dep) > obj_mt:
+                return True
+        except OSError:
+            return True
+    return False
+
 
 def main():
     args = parse_args()
@@ -70,6 +116,7 @@ def main():
 
     cxx_flags = [
         "clang++", "-std=c++20", "-O2", "-g0", "-fPIC",
+        "-ffile-prefix-map=" + os.path.abspath(args.repo) + "=src",
         "-D_GNU_SOURCE", "-DVK_NO_PROTOTYPES", "-DAGVK_BUILDING",
         "-DAGVK_INCLUDES=2", "-DAFTERGLOW_SHADER_STAMP=0x12345678ull",
         "-DNDEBUG", "-Wno-everything"
@@ -77,6 +124,7 @@ def main():
 
     c_flags = [
         "clang", "-O2", "-g0", "-fPIC", "-D_GNU_SOURCE", "-Wno-everything",
+        "-ffile-prefix-map=" + os.path.abspath(args.repo) + "=src",
         "-I" + os.path.join(args.repo, "host", "posix"),
         "-I" + os.path.join(args.repo, "third_party", "stb"),
     ]
@@ -102,20 +150,20 @@ def main():
     for s in sorted(cpp_srcs):
         name = os.path.relpath(s, args.repo).replace(os.sep, "_")[:-4]
         obj = os.path.join(obj_dir, "vk_" + name + ".o")
-        cmd = cxx_flags + ["-c", s, "-o", obj]
+        cmd = cxx_flags + ["-MD", "-MF", obj + ".d", "-c", s, "-o", obj]
         all_jobs.append((cmd, s, obj))
 
     for s in c_srcs:
         name = os.path.splitext(os.path.basename(s))[0]
         obj = os.path.join(obj_dir, "vk_posix_" + name + ".o")
-        cmd = c_flags + ["-c", s, "-o", obj]
+        cmd = c_flags + ["-MD", "-MF", obj + ".d", "-c", s, "-o", obj]
         all_jobs.append((cmd, s, obj))
 
     to_compile = []
     all_objs = []
     for cmd, s, obj in all_jobs:
         all_objs.append(obj)
-        if args.force or not os.path.exists(obj) or os.path.getmtime(s) > os.path.getmtime(obj):
+        if needs_build(s, obj, args.force):
             to_compile.append((cmd, s, obj))
 
     print(f"Targets: {len(all_jobs)} ({len(to_compile)} to compile, {len(all_jobs) - len(to_compile)} up-to-date)")
@@ -155,7 +203,23 @@ def main():
     t_link = time.time()
     res = subprocess.run(link_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if res.returncode != 0:
-        print(f"Link failed:\n{res.stderr or res.stdout}", file=sys.stderr)
+        # A failed link leaves the previous binary in place: say so loudly, on stdout as well as stderr, and
+        # name the usual cause. 98% of these are a shell without the toolchain (see $D/wt/env.sh).
+        detail = (res.stderr or "") + (res.stdout or "")
+        note = ""
+        try:
+            st = os.stat(out_so)
+            note = f"\nthe previous {os.path.basename(out_so)} is still in place, unchanged since {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st.st_mtime))}"
+        except OSError:
+            note = f"\n{os.path.basename(out_so)} does not exist: nothing was produced"
+        banner = (f"\n*** LINK FAILED ***  {os.path.basename(out_so)} was NOT produced.{note}\n"
+                  f"{detail.strip()}\n"
+                  f"Hint: put clang, lld and pkg-config on PATH first (and "
+                  f"LIBRARY_PATH); without lld the error is \"invalid linker name in argument '-fuse-ld=lld'\", "
+                  f"without pkg-config it is '-lSDL2' or ffmpeg undefined symbols.\n"
+                  f"Exit code 1.\n")
+        print(banner, file=sys.stderr)
+        print(banner)
         sys.exit(1)
 
     mb = os.path.getsize(out_so) / (1024 * 1024)
