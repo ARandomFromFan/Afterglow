@@ -2251,8 +2251,8 @@ bool offscreen_init() {
     ci.extent = {kShotW, kShotH, 1};
     if (!create_image(ci, shot_image, shot_image_alloc)) return false;
     for (int i = 0; i < 2; i++)
-        if (!create_buffer((uint64_t)kShotW * kShotH * 4, VK_BUFFER_USAGE_TRANSFER_DST_BIT, true, shot_bufs[i],
-                           shot_allocs[i], &shot_maps[i]))
+        if (!create_buffer_cached((uint64_t)kShotW * kShotH * 4, VK_BUFFER_USAGE_TRANSFER_DST_BIT, shot_bufs[i],
+                                  shot_allocs[i], &shot_maps[i]))
             return false;
     return true;
 }
@@ -2617,11 +2617,21 @@ void do_present(const nvn_tex* t, const int crop[4]) {
                 vkCmdCopyImageToBuffer(r.cmd, made_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, made_buf, 1, &c);
             }
             if (shot) {
+                if (src) image_barrier(r.cmd, src, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL);
                 image_barrier(r.cmd, shot_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
                 blit_crop(r.cmd, src, sw, sh, crop, shot_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, kShotW, kShotH);
                 image_barrier(r.cmd, shot_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
                 const VkBufferImageCopy c{0, 0, 0, {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, {0, 0, 0}, {kShotW, kShotH, 1}};
                 vkCmdCopyImageToBuffer(r.cmd, shot_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, shot_bufs[presents & 1], 1, &c);
+                VkMemoryBarrier2 hb{VK_STRUCTURE_TYPE_MEMORY_BARRIER_2};
+                hb.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+                hb.srcAccessMask = VK_ACCESS_2_MEMORY_WRITE_BIT;
+                hb.dstStageMask = VK_PIPELINE_STAGE_2_HOST_BIT;
+                hb.dstAccessMask = VK_ACCESS_2_HOST_READ_BIT;
+                VkDependencyInfo hd{VK_STRUCTURE_TYPE_DEPENDENCY_INFO};
+                hd.memoryBarrierCount = 1;
+                hd.pMemoryBarriers = &hb;
+                vkCmdPipelineBarrier2(r.cmd, &hd);
             }
         }
         memory_end_submission(r.cmd);
@@ -2693,6 +2703,7 @@ void do_present(const nvn_tex* t, const int crop[4]) {
         static struct { bool on; uint64_t value; int64_t presents; } pending{};
         auto take = [&](uint64_t at_value, int64_t at_present, bool is_hos = false, int hos_idx = 0) {
             wait_value(at_value);
+            invalidate_mapped(shot_allocs[at_present & 1], (uint64_t)kShotW * kShotH * 4);
             const uint8_t* const sm = (const uint8_t*)shot_maps[at_present & 1];
             auto px = std::make_shared<std::vector<uint8_t>>(sm, sm + (size_t)kShotW * kShotH * 4);
             // (RX_VK_DUMP_BLACK=<n>: a shot with 12-90% pure black pixels in a lit picture, or a green cast over it,

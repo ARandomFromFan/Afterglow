@@ -9,6 +9,7 @@
 #include "common/settings.h"
 #include "shader_recompiler/backend/spirv/emit_spirv.h"
 #include "shader_recompiler/backend/spirv/emit_spirv_instructions.h"
+#include "shader_recompiler/backend/spirv/mma_layout.h"
 #include "shader_recompiler/backend/spirv/spirv_emit_context.h"
 #include "shader_recompiler/frontend/ir/modifiers.h"
 
@@ -807,6 +808,19 @@ void EmitImageWrite(EmitContext& ctx, IR::Inst* inst, const IR::Value& index, Id
     const auto [image, is_integer] = Image(ctx, index, info);
     if (!is_integer) {
         color = ctx.OpBitcast(ctx.F32[4], color);
+        if (frag_nan_guard) {
+            const Id b4 = ctx.TypeVector(ctx.U1, 4);
+            const Id is_nan = ctx.OpIsNan(b4, color);
+            const Id is_inf = ctx.OpIsInf(b4, color);
+            const Id bad = ctx.OpLogicalOr(b4, is_nan, is_inf);
+            const Id zero = ctx.ConstantNull(ctx.F32[4]);
+            const Id c_neg = ctx.Const(-1e30f);
+            const Id c_pos = ctx.Const(1e30f);
+            const Id clamp_min = ctx.ConstantComposite(ctx.F32[4], c_neg, c_neg, c_neg, c_neg);
+            const Id clamp_max = ctx.ConstantComposite(ctx.F32[4], c_pos, c_pos, c_pos, c_pos);
+            const Id clamped = ctx.OpNMin(ctx.F32[4], ctx.OpNMax(ctx.F32[4], color, clamp_min), clamp_max);
+            color = ctx.OpSelect(ctx.F32[4], bad, zero, clamped);
+        }
     }
     ctx.OpImageWrite(image, coords, color);
 }

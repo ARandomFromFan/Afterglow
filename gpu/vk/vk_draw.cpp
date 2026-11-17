@@ -755,15 +755,15 @@ __declspec(noinline) VkResult guarded_compute(VkPipelineCache cache, const VkCom
 // outside it goes to whoever had the signal before, so the game's own crash report is unchanged)
 static thread_local sigjmp_buf fault_jmp;
 static thread_local volatile sig_atomic_t fault_armed;
-static struct sigaction fault_previous[2];
-static const int fault_signals[2] = {SIGSEGV, SIGBUS};
+static struct sigaction fault_previous[3];
+static const int fault_signals[3] = {SIGSEGV, SIGBUS, SIGFPE};
 
 static void on_driver_fault(int sig, siginfo_t* si, void* ctx) {
     if (fault_armed) {
         fault_armed = 0;
         siglongjmp(fault_jmp, 1);
     }
-    const struct sigaction* p = &fault_previous[sig == SIGSEGV ? 0 : 1];
+    const struct sigaction* p = sig == SIGSEGV ? &fault_previous[0] : sig == SIGBUS ? &fault_previous[1] : &fault_previous[2];
     if ((p->sa_flags & SA_SIGINFO) && p->sa_sigaction) {
         p->sa_sigaction(sig, si, ctx);
     } else if (p->sa_handler && p->sa_handler != SIG_IGN && p->sa_handler != SIG_DFL) {
@@ -776,7 +776,7 @@ static void on_driver_fault(int sig, siginfo_t* si, void* ctx) {
 static void install_driver_fault_guard() {
     static std::once_flag once;
     std::call_once(once, [] {
-        for (int i = 0; i < 2; i++) {
+        for (int i = 0; i < 3; i++) {
             struct sigaction sa;
             memset(&sa, 0, sizeof sa);
             sa.sa_sigaction = on_driver_fault;
@@ -6627,7 +6627,7 @@ void dispatch(VkCommandBuffer cmd, NvnState& s, uint32_t x, uint32_t y, uint32_t
                     if (e[i].addr && v >= e[i].addr && v < e[i].addr + e[i].size) return true;
                 return false;
             };
-            for (int i = 0; i < 2; i++) {
+            for (int i = 0; i < 3; i++) {
                 if (!e[i].addr || !e[i].size) continue;
                 const uint64_t n = std::min<uint64_t>(e[i].size, 256u << 10) & ~7ull;
                 std::vector<uint64_t> w(n / 8);
