@@ -315,7 +315,10 @@ void clear_tex(VkCommandBuffer cmd, NvnState& st, const nvn_p_clear_tex& p) {
     end_pass(cmd);
     GprofSpan gp(cmd, "xfer clear texture (with its barriers)");
     full_barrier(cmd);
-    if (whole && s.tex->type != VK_IMAGE_TYPE_3D) {
+    // Clear all depth slices of a whole 3D image with vkCmdClearColorImage.
+    const uint32_t ld = s.tex->type == VK_IMAGE_TYPE_3D ? std::max(1u, s.tex->depth >> s.level) : 1;
+    const bool whole3d = s.tex->type == VK_IMAGE_TYPE_3D && !s.z && s.d >= ld;
+    if ((whole && s.tex->type != VK_IMAGE_TYPE_3D) || (whole && whole3d)) {
         VkImageSubresourceRange rng{s.tex->aspect, s.level, 1, s.layer, s.layers};
         if (s.tex->aspect & VK_IMAGE_ASPECT_COLOR_BIT) {
             VkClearColorValue cv{};
@@ -329,10 +332,14 @@ void clear_tex(VkCommandBuffer cmd, NvnState& st, const nvn_p_clear_tex& p) {
         }
     } else {   // (a region: a pass over that level and layer, and vkCmdClearAttachments)
         const nvn_view* v = p.has_view ? &p.view : nullptr;
-        for (uint32_t k = 0; k < s.layers; k++) {
+        // Region clear: iterate slices for 3D textures, or layers for array textures.
+        const bool d3 = s.tex->type == VK_IMAGE_TYPE_3D;
+        const uint32_t first_slice = d3 ? (uint32_t)std::max(0, s.z) : s.layer;
+        const uint32_t nslices = d3 ? std::min(s.d, ld > first_slice ? ld - first_slice : 0u) : s.layers;
+        for (uint32_t k = 0; k < nslices; k++) {
             nvn_view lv = v ? *v : nvn_view{};
             lv.set_levels = 1, lv.base_level = (uint8_t)s.level, lv.nlevels = 1;
-            lv.set_layers = 1, lv.min_layer = (uint16_t)(s.layer + k), lv.nlayers = 1;
+            lv.set_layers = 1, lv.min_layer = (uint16_t)(first_slice + k), lv.nlayers = 1;
             const VkImageView view = texture_view(s.tex, p.tex, &lv, VK_IMAGE_VIEW_TYPE_2D, ViewUse::Attachment);
             if (!view) continue;
             VkRenderingAttachmentInfo a{VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
