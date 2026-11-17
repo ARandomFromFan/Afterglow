@@ -1086,7 +1086,7 @@ void hos_thread_log_handles(void) {
     ReleaseSRWLockShared(&threads_lock);
 }
 
-/* ---- virtual cores (on unless HOS_VCORES=0) -------------------------------------------------------------------
+/* ---- virtual cores (off unless HOS_VCORES=1) -------------------------------------------------------------------
    Horizon runs at most one thread per core, and TOTK keys per-core data (allocators, job queues) by the current core
    number without locks; both MacNativeGames (threads.c) and totk-pc-recomp (runtime/kernel.c, MIT) schedule the game's
    threads on three virtual cores for it. Here a guest thread holds one of hos_cores() cores while it runs guest code
@@ -1109,7 +1109,7 @@ int hos_vcores_on(void) {
     static int on = -1;
     if (on < 0) {
         const char *e = getenv("HOS_VCORES");
-        on = e ? atoi(e) != 0 : 1;   /* (afterglow: on unless HOS_VCORES=0; the game's job queues need it) */
+        on = e ? atoi(e) != 0 : 0;   /* off unless HOS_VCORES=1: sleeping threads kept their vcore (P26/P27) */
     }
     return on;
 }
