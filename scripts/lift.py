@@ -14,7 +14,6 @@ def parse_args():
     p = argparse.ArgumentParser(description="Lift Duskbloods modules into C")
     p.add_argument("--exefs", default=os.path.join(env.GAME_DIR, "exefs"))
     p.add_argument("--work", default=env.WORK_DIR)
-    p.add_argument("--lifter-kit", default=env.LIFTER_KIT_DIR)
     p.add_argument("--host", default=None, help="Host runtime directory for HLE detection")
     p.add_argument("--rechunk", action="store_true", help="Recompute chunk boundaries")
     return p.parse_args()
@@ -34,22 +33,8 @@ def v8_builtins(img):
 
 def main():
     args = parse_args()
-    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    local_a64 = os.path.join(repo_root, "third_party/a64-kit")
-    local_lifter = os.path.join(repo_root, "lifter")
-
-    if os.path.isdir(local_a64) and os.path.isdir(local_lifter):
-        sys.path.insert(0, os.path.join(local_a64, "tools"))
-        sys.path.insert(0, os.path.join(local_a64, "hos"))
-        sys.path.insert(0, os.path.join(local_a64, "lift"))
-        sys.path.insert(0, local_lifter)
-    else:
-        kit = args.lifter_kit
-        sys.path.insert(0, os.path.join(kit, "third_party/a64-kit/tools"))
-        sys.path.insert(0, os.path.join(kit, "third_party/a64-kit/hos"))
-        sys.path.insert(0, os.path.join(kit, "third_party/a64-kit/lift"))
-        sys.path.insert(0, os.path.join(kit, "nx2"))
-        sys.path.insert(0, kit)
+    repo_root = str(env.REPO)
+    sys.path[:0] = env.LIFTER_PATHS
 
     import kit, nso2, nso, insn, lift_fixes, nx_image, a64_lift, a64emit, a64_rtgen, rtgen, standalone, chunks
 

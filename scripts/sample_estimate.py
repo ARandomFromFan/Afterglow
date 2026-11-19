@@ -15,15 +15,11 @@ def parse_args():
     p = argparse.ArgumentParser(description="2% sample lift and resource extrapolation")
     p.add_argument("--exefs", default=os.path.join(env.GAME_DIR, "exefs"))
     p.add_argument("--work", default=os.path.join(env.WORK_DIR, "sample_modules"))
-    p.add_argument("--lifter-kit", default=env.LIFTER_KIT_DIR)
     return p.parse_args()
 
 def main():
     args = parse_args()
-    sys.path.insert(0, os.path.join(args.lifter_kit, "third_party/a64-kit/tools"))
-    sys.path.insert(0, os.path.join(args.lifter_kit, "third_party/a64-kit/hos"))
-    sys.path.insert(0, os.path.join(args.lifter_kit, "nx2"))
-    sys.path.insert(0, args.lifter_kit)
+    sys.path[:0] = env.LIFTER_PATHS
 
     import kit, nso2, nso, insn, lift_fixes, nx_image, a64_lift, a64emit, a64_rtgen, rtgen, standalone
 

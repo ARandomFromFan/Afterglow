@@ -14,9 +14,7 @@ import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts"))
 import env  # noqa: E402
-LIFTER_KIT_DIR = env.LIFTER_KIT_DIR
-sys.path.insert(0, os.path.join(LIFTER_KIT_DIR, "nx2"))
-sys.path.insert(0, LIFTER_KIT_DIR)
+sys.path[:0] = env.LIFTER_PATHS
 
 import kit  # noqa: F401
 import insn

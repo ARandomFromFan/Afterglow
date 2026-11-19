@@ -12,7 +12,7 @@ Guide for coding agents working on Afterglow, a native port of *The Duskbloods* 
 
 ## Setup
 
-Copy `scripts/.env.example` to `scripts/.env` and set `WORK_DIR`, `GAME_DIR` and `LIFTER_KIT_DIR`. Never hardcode a machine-specific path in a tracked file. New scripts import `env` and use `env.WORK_DIR`, `env.GAME_DIR`, `env.LIFTER_KIT_DIR` or `env.REPO`.
+Copy `scripts/.env.example` to `scripts/.env` and set `WORK_DIR` and `GAME_DIR`. Never hardcode a machine-specific path in a tracked file. New scripts import `env` and use `env.WORK_DIR`, `env.GAME_DIR`, `env.LIFTER_PATHS` or `env.REPO`.
 
 You need clang, lld, pkg-config and Python 3 with the `lz4` package (the lifter reads compressed NSOs with it) on PATH, plus a Vulkan driver with `VK_EXT_mesh_shader` and `VK_EXT_external_memory_host`.
 

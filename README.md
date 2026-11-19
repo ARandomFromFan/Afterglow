@@ -34,7 +34,7 @@ Known issues:
 
 ## Building
 
-Paths come from `scripts/.env`. Copy `scripts/.env.example` to `scripts/.env` and set `WORK_DIR`, `GAME_DIR` (with `exefs/` and `romfs/` inside) and `LIFTER_KIT_DIR`. Unset keys fall back to `work/` and `game/` inside the repo, and every script flag (`--work`, `--exefs`, ...) still overrides them.
+Paths come from `scripts/.env`. Copy `scripts/.env.example` to `scripts/.env` and set `WORK_DIR` and `GAME_DIR` (with `exefs/` and `romfs/` inside). Unset keys fall back to `work/` and `game/` inside the repo, and every script flag (`--work`, `--exefs`, ...) still overrides them.
 
 ```sh
 # 1. Lift the game's executables to C (reads GAME_DIR/exefs)
@@ -52,7 +52,8 @@ python3 scripts/build.py
 ## Running
 
 ```sh
-$WORK_DIR/duskbloods_game $WORK_DIR/sa/image/image.bin   --romfs $GAME_DIR/romfs --user $WORK_DIR/user
+$WORK_DIR/duskbloods_game $WORK_DIR/sa/image/image.bin \
+  --romfs $GAME_DIR/romfs --user $WORK_DIR/user
 ```
 
 Set `HOS_AUDIO=0` to run without sound. Online features need a CA at `pki/ca.der` in the working directory, or `HOS_NPLN_CA=/path/to/ca.der`.
