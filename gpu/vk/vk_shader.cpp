@@ -967,8 +967,19 @@ uint64_t disk_stamp() {
 #endif
     };
     add(abi, sizeof abi);
+    // backend modes set from outside the translator (coopmat_init): RX_VK_NO_NAN_GUARD/NO_INVARIANT and the card change them
+    const uint32_t modes[] = {(uint32_t)Shader::Backend::SPIRV::mma_software, (uint32_t)Shader::Backend::SPIRV::frag_nan_guard,
+                              (uint32_t)Shader::Backend::SPIRV::position_invariant};
+    add(modes, sizeof modes);
+    // every env knob that changes emitted SPIR-V; scripts/check_translation_env.py fails when one is missing
+    static const char* const translation_env[] = {
+        "RX_VK_AFTERGLOW", "RX_VK_MMA", "RX_VK_NATIVE", "RX_VK_NAN", "RX_VK_TASK_CAP", "RX_VK_NETWORK", "RX_VK_GP",
+        "RX_VK_FOLLOW", "RX_VK_NO_FOLLOW", "RX_VK_NO_F16", "RX_VK_SHARED", "RX_VK_MESH", "EDEN_",
+        "RX_VK_PTR_SPLIT_FALLBACK", "RX_VK_NO_CBUF_LOAD_RULE", "RX_VK_MISS_LOG", "RX_VK_BLOCK_PROBE", "RX_VK_ALL_GLOBAL_PROGS",
+        "RX_VK_NO_DRAW_PARAMS",
+    };
     for (char** e = _environ; e && *e; e++)
-        for (const char* pre : {"RX_VK_AFTERGLOW", "RX_VK_MMA", "RX_VK_NATIVE", "RX_VK_NAN", "RX_VK_TASK_CAP", "RX_VK_NETWORK", "RX_VK_GP", "RX_VK_FOLLOW", "RX_VK_NO_FOLLOW", "RX_VK_NO_F16", "RX_VK_SHARED", "RX_VK_MESH", "EDEN_"})
+        for (const char* pre : translation_env)
             if (!strncmp(*e, pre, strlen(pre))) add(*e, strlen(*e));
     return h;
 }
