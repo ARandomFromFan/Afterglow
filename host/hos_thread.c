@@ -29,6 +29,7 @@ struct HosThread {
     char name[48];
     HANDLE handle;
     int started;
+    int starting;   /* (1 while another thread is in hos_thread_start wiring this one up: see hos_thread_destroy) */
     /* the kernel side (hos_svc.c): this thread's Horizon handle and the event it blocks on */
     uint32_t kernel_handle;
     HANDLE wake;
@@ -503,6 +504,7 @@ HosThread *hos_thread_create(uint64_t guest_tt, uint64_t entry, uint64_t arg, ui
 
 void hos_thread_start(HosThread *t) {
     if (t->started) return;
+    __atomic_add_fetch(&t->starting, 1, __ATOMIC_ACQ_REL);   /* (the creator owns the handle until pin_by_core) */
     t->started = 1;
     if (t->guest_tt) G8(t->guest_tt + 0x40) = 3; /* ThreadState_Started */
     /* Host stack: lifted code nests a C call per guest call, so give it plenty. */
@@ -518,6 +520,7 @@ void hos_thread_start(HosThread *t) {
 #ifdef __EMSCRIPTEN__
     { void web_thread_named(HANDLE t, const char *name); web_thread_named(t->handle, t->name); }
 #endif
+    __atomic_sub_fetch(&t->starting, 1, __ATOMIC_ACQ_REL);
 }
 
 void hos_thread_join(HosThread *t) {
@@ -535,6 +538,8 @@ void hos_thread_join(HosThread *t) {
 }
 
 void hos_thread_destroy(HosThread *t) {
+    /* (wait for hos_thread_start to finish wiring the handle, or this frees t under it) */
+    while (__atomic_load_n(&t->starting, __ATOMIC_ACQUIRE)) SwitchToThread();
     AcquireSRWLockExclusive(&threads_lock);
     for (int i = 0; i < nthreads; i++)
         if (threads[i] == t) { threads[i] = threads[--nthreads]; break; }
