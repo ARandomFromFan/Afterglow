@@ -9,14 +9,16 @@ namespace agvk {
 struct Options {
     int framegen = 0;     // made frames: 0 off, or 2, 3, 4 times the game's frames
     int pace = 0;         // frames shown on an even line (vk_framegen.cpp)
-    int output_res = 0;   // the game's whole frame, docked: 0 its 2048x1152, 1 2560x1440, 2 3840x2160; read once, at the start (host/nn_applet.c)
+    int render_scale = 0; // 0: 100% (1920x1080), 1: 80% (1536x864), 2: 67% (1280x720); host/nn_applet.c
     int upscale = 0;      // to the window: 0 off (the plain copy to the window), 1 Catmull-Rom, 2 Lanczos
     int sharpness = 0;    // 0 to 100
     int realtime = 1;     // game time follows the clock (host/nn_vi.c); 0: per frame (slower frames, slower game)
     int handheld = 0;     // the game's handheld profile: ~4 fps, softer; read once, at the start (host/nn_applet.c)
     int ultrawide = 0;    // the camera at the monitor's shape when it is wider than 16:9; read once, at the start (host/hos_main.c)
     int show_fps = 0;
-    int fullscreen = 0;   // borderless, at the monitor's size: F11 is the same setting
+    int window_mode = 0;  // 0: Windowed, 1: Borderless fullscreen, 2: Exclusive fullscreen
+    int window_size = 0;  // 0: 1280x720 default, 1: 1920x1080, 2: 2560x1440, 3: 3840x2160 (windowed only)
+    int present_mode = 0; // 0: Auto (mailbox), 1: VSync (FIFO), 2: Uncapped (immediate)
     int gpu_device = 0;   // graphics card index: 0 Auto, 1..N device 0..N-1 (gpu/vk/vk_main.cpp; RX_VK_DEVICE)
     int pad_background = 0;   // the controllers count while another window has the focus (host/nn_hid.c; HOS_INPUT_BACKGROUND)
     int mouse_native = 0; // the mouse turns the camera's own angles (host/mouse_native.c); 0: as the right stick

@@ -11,6 +11,7 @@
    the game gets none of it; the capture it had comes back when the menu closes. */
 #include "../hos.h"
 #include "../hos_sdl.h"
+#include "../hos_paths.h"
 
 /* (the window's app id: the applications menu's entry names it as its StartupWMClass, builder/linux/afterglow_builder.py) */
 #define HOS_APP_ID "io.github.ARandomFromFan.Afterglow"
@@ -115,9 +116,9 @@ static void mouse_capture(int on) {
 static void set_fullscreen(int on) {
     if (on == fullscreen) return;
     fullscreen = on;
-    hos_posix_window[3] = on;
+    hos_posix_window[3] = on != 0;
     hos_sdl_fullscreen(window, on);
-    hos_log("display: %s", on ? "fullscreen (F11 for a window)" : "windowed");
+    hos_log("display: %s", on == 2 ? "exclusive fullscreen" : on ? "fullscreen (F11 for a window)" : "windowed");
 }
 
 static DWORD WINAPI renderer_main(void *p) {
@@ -149,7 +150,7 @@ static volatile int menu_asked = -1;         /* (the Insert menu opened or close
    menu opened or closed (host/display.c's) */
 __attribute__((visibility("default"))) void hos_posix_post_message(uint32_t msg, uintptr_t wp, intptr_t lp) {
     (void)lp;
-    if (msg == WM_APP + 7) __atomic_store_n(&fullscreen_asked, wp ? 1 : 0, __ATOMIC_RELEASE);
+    if (msg == WM_APP + 7) __atomic_store_n(&fullscreen_asked, (int)wp, __ATOMIC_RELEASE);
     if (msg == WM_APP + 8) __atomic_store_n(&menu_asked, wp ? 1 : 0, __ATOMIC_RELEASE);
 }
 /* the menu opened: the mouse let go (its capture kept for later); closed: the capture back, if the window still has the focus */
@@ -214,10 +215,16 @@ void hos_display_loop(void) {
     HosSdlEvent e;
     while (!__atomic_load_n(&start_asked, __ATOMIC_ACQUIRE)) hos_sdl_wait_event(&e, 10);   /* (nothing to show yet) */
     extern float hos_aspect_ratio;
-    int win_w = hos_aspect_ratio > 1.8f ? (int)(720 * hos_aspect_ratio + 0.5f) : 1280, win_h = 720;
-    if (getenv("HOS_WINDOW_SIZE")) {
+    static const int win_sizes[][2] = {{1280, 720}, {1920, 1080}, {2560, 1440}, {3840, 2160}};
+    int ws_idx = hos_ini_option("window_size", 0);
+    int win_w = (ws_idx >= 0 && ws_idx < 4) ? win_sizes[ws_idx][0] : 1280;
+    int win_h = (ws_idx >= 0 && ws_idx < 4) ? win_sizes[ws_idx][1] : 720;
+    if (hos_aspect_ratio > 1.8f) win_w = (int)(win_h * hos_aspect_ratio + 0.5f);
+    const char *env_ws = getenv("HOS_WINDOW_SIZE");
+    if (env_ws) {
         int w = 0, h = 0;
-        if (sscanf(getenv("HOS_WINDOW_SIZE"), "%dx%d", &w, &h) == 2 && w >= 64 && h >= 64) win_w = w, win_h = h;
+        if (sscanf(env_ws, "%dx%d", &w, &h) == 2 && w >= 64 && h >= 64) win_w = w, win_h = h;
+        else if (atoi(env_ws) >= 0 && atoi(env_ws) < 4) win_w = win_sizes[atoi(env_ws)][0], win_h = win_sizes[atoi(env_ws)][1];
     }
     window = hos_sdl_window(HOS_GAME_TITLE, win_w, win_h);
     if (!window) {
@@ -236,7 +243,12 @@ void hos_display_loop(void) {
         snprintf(png + n, sizeof png - n, "afterglow.png");
         hos_sdl_icon(window, png);
     }
-    if (getenv("HOS_FULLSCREEN") && atoi(getenv("HOS_FULLSCREEN"))) set_fullscreen(1);
+        int win_mode = 0;
+    if (getenv("HOS_WINDOW_MODE")) win_mode = atoi(getenv("HOS_WINDOW_MODE"));
+    else if (getenv("HOS_FULLSCREEN") && atoi(getenv("HOS_FULLSCREEN"))) win_mode = 1;
+    else win_mode = hos_ini_option("window_mode", 0);
+    if (win_mode < 0 || win_mode > 2) win_mode = 0;
+    if (win_mode) set_fullscreen(win_mode);
     CloseHandle(CreateThread(NULL, 0, renderer_main, NULL, 0, NULL));
     for (;;) {
         hos_sdl_pads_pump();
@@ -273,7 +285,7 @@ void hos_display_loop(void) {
                 case HOS_SDL_EV_KEY_DOWN: {
                     const int scancode = e.scancode, mod = e.mod;
                     if (e.scancode == 41) mouse_capture(0);   /* Esc */
-                    if (!e.repeat && (scancode == 68 || (scancode == 40 && (mod & 0x300)))) set_fullscreen(!fullscreen);   /* F11, Alt+Enter */
+                    if (!e.repeat && (scancode == 68 || (scancode == 40 && (mod & 0x300)))) set_fullscreen(fullscreen ? 0 : 1);   /* F11, Alt+Enter */
                     break;
                 }
                 case HOS_SDL_EV_MOUSE_DOWN:

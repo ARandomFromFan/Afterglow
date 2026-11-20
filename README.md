@@ -69,6 +69,12 @@ $WORK_DIR/duskbloods_game $WORK_DIR/sa/image/image.bin \
 
 Set `HOS_AUDIO=0` to run without sound. Online features need a CA at `pki/ca.der` in the working directory, or `HOS_NPLN_CA=/path/to/ca.der`.
 
+The overlay (`Insert` or `F1`) sets display and graphics options in `afterglow_options.ini`, which environment variables can override:
+- `HOS_RENDER_SCALE=0|1|2`: internal render resolution (0 = 100% 1920x1080 default, 1 = 80% 1536x864, 2 = 67% 1280x720).
+- `HOS_WINDOW_MODE=0|1|2`: window mode (0 = windowed default, 1 = borderless fullscreen, 2 = exclusive fullscreen; `HOS_FULLSCREEN=1` maps to borderless).
+- `HOS_WINDOW_SIZE=0|1|2|3`: windowed mode resolution (0 = 1280x720 default, 1 = 1920x1080, 2 = 2560x1440, 3 = 3840x2160; applies on restart).
+- `RX_VK_PRESENT_MODE=0|1|2`: presentation mode (0 = Auto/mailbox default, 1 = VSync/FIFO, 2 = Uncapped/immediate; `RX_VK_FIFO` and `RX_VK_IMMEDIATE` override).
+
 ## Contributing
 
 Help is welcome and really appreciated, whether it's code, testing or bug reports.

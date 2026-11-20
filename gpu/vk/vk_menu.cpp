@@ -68,9 +68,21 @@ const char* tx_percent(int v) {
     snprintf(b, sizeof b, "%d%%", v);
     return b;
 }
-const char* tx_output_res(int v) {
-    static const char* t[] = {"2048x1152 (game, restart)", "2560x1440 (restart)", "3840x2160 (restart)"};
-    return t[v];
+const char* tx_render_scale(int v) {
+    static const char* t[] = {"100% (1920x1080)", "80% (1536x864)", "67% (1280x720)"};
+    return (unsigned)v < 3 ? t[v] : t[0];
+}
+const char* tx_window_mode(int v) {
+    static const char* t[] = {"Windowed", "Borderless fullscreen", "Exclusive fullscreen"};
+    return (unsigned)v < 3 ? t[v] : t[0];
+}
+const char* tx_window_size(int v) {
+    static const char* t[] = {"1280x720 default", "1920x1080", "2560x1440", "3840x2160"};
+    return (unsigned)v < 4 ? t[v] : t[0];
+}
+const char* tx_present_mode(int v) {
+    static const char* t[] = {"Auto (mailbox)", "VSync (FIFO)", "Uncapped (immediate)"};
+    return (unsigned)v < 3 ? t[v] : t[0];
 }
 const char* tx_speed(int v) { return v ? "Real time" : "Per frame"; }
 const char* tx_handheld(int v) { return v ? "On (restart)" : "Off (restart)"; }
@@ -135,11 +147,13 @@ void apply_preset(int p) {
 }
 
 Row rows[] = {
-    // Graphics (10 rows)
+    // Graphics (12 rows)
     {TAB_GRAPHICS, "Quality preset", &opts.preset, 0, 5, 1, tx_preset,
      "Automatically configures upscaling, frame generation, and dynamic VRAM limits tailored to your GPU tier."},
-    {TAB_GRAPHICS, "Fullscreen", &opts.fullscreen, 0, 1, 1, tx_onoff,
-     "Fills the whole screen with the game, without the window's border. The same as F11."},
+    {TAB_GRAPHICS, "Window mode", &opts.window_mode, 0, 2, 1, tx_window_mode,
+     "Windowed runs in a movable window. Borderless fills the monitor without borders. Exclusive allows mode changes."},
+    {TAB_GRAPHICS, "Window size", &opts.window_size, 0, 3, 1, tx_window_size,
+     "The size of the game's window in windowed mode. Applies after a restart."},
     {TAB_GRAPHICS, "GPU device", &opts.gpu_device, 0, 8, 1, tx_gpu,
      "Selects which graphics card Vulkan uses. Auto picks the best dedicated GPU. Applies after restart."},
     {TAB_GRAPHICS, "Frame generation", &opts.framegen, 0, 8, 1, tx_framegen,
@@ -147,9 +161,10 @@ Row rows[] = {
      "can show artifacts."},
     {TAB_GRAPHICS, "Frame pacing", &opts.pace, 0, 1, 1, tx_onoff,
      "Shows each frame at an even interval instead of as soon as it is ready. Less stutter, at up to one frame of delay."},
-    {TAB_GRAPHICS, "Output resolution", &opts.output_res, 0, 2, 1, tx_output_res,
-     "The size the game draws its whole frame at, HUD included, before it is scaled to your window. The 3D is drawn at "
-     "the game's own scale of it. Docked only. Applies after a restart."},
+    {TAB_GRAPHICS, "Present mode", &opts.present_mode, 0, 2, 1, tx_present_mode,
+     "Auto picks mailbox when available. VSync waits for the display. Uncapped presents frames immediately."},
+    {TAB_GRAPHICS, "Render scale", &opts.render_scale, 0, 2, 1, tx_render_scale,
+     "The internal resolution the game renders at: 100% (1080p), 80% (864p), or 67% (720p). Applies after a restart."},
     {TAB_GRAPHICS, "Upscaling", &opts.upscale, 0, 2, 1, tx_upscale,
      "The filter that scales the picture to your window. Off is the plain copy. Catmull-Rom is sharper, Lanczos sharper still."},
     {TAB_GRAPHICS, "Sharpness", &opts.sharpness, 0, 100, 10, tx_percent,
@@ -244,7 +259,6 @@ std::string ini_path() {
     return dir.substr(0, dir.find_last_of("\\/") + 1) + "afterglow_options.ini";
 }
 const char* ini_key(const Row& r) {
-    if (r.value == &opts.output_res) return "output_res";   // (host/nn_applet.c reads it at the start)
     static char k[32];
     size_t n = 0;
     for (const char* p = r.name; *p && n + 1 < sizeof k; p++) k[n++] = *p == ' ' ? '_' : (char)tolower(*p);
@@ -329,13 +343,16 @@ void set_row(Row& r, int v, int dir, bool keep = true) {
         apply_preset(*r.value);
     } else {
         *r.value = v > r.hi ? r.lo : v < r.lo ? r.hi : v;
-        if (r.value != &opts.fullscreen && r.value != &opts.show_fps && r.value != &opts.gpu_device &&
+        if (r.value != &opts.window_mode && r.value != &opts.window_size && r.value != &opts.present_mode &&
+            r.value != &opts.show_fps && r.value != &opts.gpu_device &&
             r.value != &opts.invert_cam_x && r.value != &opts.invert_cam_y && r.value != &opts.mouse_native &&
             r.value != &opts.mouse_sens && r.value != &opts.mouse_invert) {   // (the controls are not the preset's)
             opts.preset = 0; // Custom
             sync_preset_budgets(0);
         }
     }
+    if (r.value == &opts.present_mode && dev.swap_extent.width && dev.swap_extent.height)
+        dev.swap_resize.store((uint64_t)dev.swap_extent.width << 32 | dev.swap_extent.height, std::memory_order_release);
     if (keep) save();
 }
 
@@ -866,7 +883,23 @@ void menu_init() {
         for (Row& r : rows)
             if (r.value == &opts.upscale) *r.value = std::min(std::max(atoi(e), r.lo), r.hi);
     if (const char* e = getenv("HOS_REALTIME_STEP")) opts.realtime = atoi(e) != 0;
-    if (const char* e = getenv("HOS_OUTPUT_RES")) opts.output_res = std::min(std::max(atoi(e), 0), 2);
+    if (const char* e = getenv("HOS_RENDER_SCALE")) opts.render_scale = std::min(std::max(atoi(e), 0), 2);
+    if (const char* e = getenv("HOS_WINDOW_MODE")) opts.window_mode = std::min(std::max(atoi(e), 0), 2);
+    else if (const char* e = getenv("HOS_FULLSCREEN")) opts.window_mode = atoi(e) != 0 ? 1 : 0;
+    if (const char* e = getenv("HOS_WINDOW_SIZE")) {
+        int w = 0, h = 0;
+        if (sscanf(e, "%dx%d", &w, &h) == 2) {
+            if (w >= 3840) opts.window_size = 3;
+            else if (w >= 2560) opts.window_size = 2;
+            else if (w >= 1920) opts.window_size = 1;
+            else opts.window_size = 0;
+        } else {
+            opts.window_size = std::min(std::max(atoi(e), 0), 3);
+        }
+    }
+    if (const char* e = getenv("RX_VK_PRESENT_MODE")) opts.present_mode = std::min(std::max(atoi(e), 0), 2);
+    if (getenv("RX_VK_FIFO")) opts.present_mode = 1;
+    if (getenv("RX_VK_IMMEDIATE")) opts.present_mode = 2;
 }
 
 
@@ -887,23 +920,27 @@ void menu_note_frame(bool game_frame) {
     if (game_frame) game_frames.fetch_add(1, std::memory_order_relaxed);
 }
 
-// The Fullscreen row and F11 are one setting: the row asks the window's thread (host/display.c), F11 shows in the row
+// The Window mode row and F11: 0 windowed, 1 borderless fullscreen, 2 exclusive fullscreen
 void fullscreen_tick() {
     static int applied = 0, settle = 0;
     const HWND main_window = app_window();
     if (!main_window) return;
-    static const bool env = getenv("HOS_FULLSCREEN") != nullptr;   // (a test's own choice: the row is left alone)
+    static const bool env = getenv("HOS_FULLSCREEN") != nullptr || getenv("HOS_WINDOW_MODE") != nullptr;
     if (env) return;
-    if (opts.fullscreen != applied) {
-        applied = opts.fullscreen;
+    if (opts.window_mode != applied) {
+        applied = opts.window_mode;
         settle = 60;
         PostMessageA(main_window, WM_APP + 7, (WPARAM)applied, 0);
         return;
     }
     if (settle > 0) { settle--; return; }
-    const int now = !(GetWindowLongA(main_window, GWL_STYLE) & WS_CAPTION);
-    if (now != applied) {
-        opts.fullscreen = applied = now;
+    const int is_fs = !(GetWindowLongA(main_window, GWL_STYLE) & WS_CAPTION);
+    if (!is_fs && applied != 0) {
+        opts.window_mode = applied = 0;
+        menu_refresh = true;
+        save();
+    } else if (is_fs && applied == 0) {
+        opts.window_mode = applied = 1;
         menu_refresh = true;
         save();
     }

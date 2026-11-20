@@ -6,6 +6,8 @@
 #pragma once
 #include <string.h>
 #include <wchar.h>
+#include <stdio.h>
+#include <stdlib.h>
 #ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -79,3 +81,20 @@ static inline DWORD hos_game_path_a(char *buf, DWORD size) {
     return (DWORD)strlen(buf);
 }
 #endif
+
+/* The Insert menu's options (afterglow_options.ini beside the executable or game folder) */
+static inline int hos_ini_option(const char *key, int otherwise) {
+    char path[MAX_PATH];
+    const DWORD n = hos_game_path_a(path, MAX_PATH);
+    char *slash = n ? (strrchr(path, 92) ? strrchr(path, 92) : strrchr(path, 47)) : NULL;
+    if (!slash) return otherwise;
+    snprintf(slash + 1, (size_t)(path + MAX_PATH - slash - 1), "afterglow_options.ini");
+    FILE *f = fopen(path, "r");
+    if (!f) return otherwise;
+    char line[80];
+    const size_t len = strlen(key);
+    while (fgets(line, sizeof line, f))
+        if (!strncmp(line, key, len) && line[len] == '=') otherwise = atoi(line + len + 1);
+    fclose(f);
+    return otherwise;
+}

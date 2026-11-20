@@ -139,7 +139,7 @@ void *hos_sdl_window(const char *title, int width, int height) {
 }
 void hos_sdl_fullscreen(void *window, int on) {
     if (version == 3) CALL(_Bool (*)(void *, _Bool), SetWindowFullscreen)(window, on != 0);
-    else CALL(int (*)(void *, uint32_t), SetWindowFullscreen)(window, on ? 0x1001 /* FULLSCREEN_DESKTOP */ : 0);
+    else CALL(int (*)(void *, uint32_t), SetWindowFullscreen)(window, on == 2 ? 0x0001 /* FULLSCREEN */ : on ? 0x1001 /* FULLSCREEN_DESKTOP */ : 0);
 }
 void hos_sdl_relative_mouse(void *window, int on) {
     if (version == 3) CALL(_Bool (*)(void *, _Bool), SetRelativeMouseMode)(window, on != 0);

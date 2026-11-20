@@ -494,22 +494,26 @@ bool create_swapchain(uint32_t width, uint32_t height) {
     }
     if (result != VK_SUCCESS || modes.empty())
         logf("vk: querying present modes failed (VkResult %d, count %u); trying mandatory FIFO mode", (int)result, n);
+    int pref = opts.present_mode;
+    if (const char* e = getenv("RX_VK_PRESENT_MODE")) pref = std::min(std::max(atoi(e), 0), 2);
+    if (getenv("RX_VK_FIFO")) pref = 1;
+    if (getenv("RX_VK_IMMEDIATE")) pref = 2;
     VkPresentModeKHR mode = VK_PRESENT_MODE_FIFO_KHR;
-    const bool force_fifo = getenv("RX_VK_FIFO") != nullptr;   // (as on a card or driver with vsync forced)
-    if (!force_fifo) {
-        for (auto m : modes)
-            if (m == VK_PRESENT_MODE_MAILBOX_KHR) mode = m;
-        // (Windows, no mailbox: AMD's driver has none, and FIFO held anything under 60 fps at 30.
-        //  Linux: immediate on NVIDIA's X11 path turns vblank off for every output, so the other
-        //  monitor and other programs tear. RX_VK_IMMEDIATE=1 still asks for it.)
-        const bool want_immediate = getenv("RX_VK_IMMEDIATE") != nullptr;
+    auto has_mode = [&](VkPresentModeKHR target) {
+        for (auto m : modes) if (m == target) return true;
+        return false;
+    };
+    if (pref == 0) {
+        if (has_mode(VK_PRESENT_MODE_MAILBOX_KHR)) mode = VK_PRESENT_MODE_MAILBOX_KHR;
 #ifdef _WIN32
-        if (want_immediate || mode == VK_PRESENT_MODE_FIFO_KHR)
+        // Windows AMD lacks mailbox; fall back to immediate to avoid 30 fps cap
+        else if (has_mode(VK_PRESENT_MODE_IMMEDIATE_KHR)) mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
 #else
-        if (want_immediate)
+        else logf("vk: mailbox present mode unavailable, falling back to FIFO");
 #endif
-            for (auto m : modes)
-                if (m == VK_PRESENT_MODE_IMMEDIATE_KHR) mode = m;
+    } else if (pref == 2) {
+        if (has_mode(VK_PRESENT_MODE_IMMEDIATE_KHR)) mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
+        else logf("vk: immediate present mode unavailable, falling back to FIFO");
     }
     VkSwapchainCreateInfoKHR ci{VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR};
     ci.surface = dev.surface;
