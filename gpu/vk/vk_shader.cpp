@@ -90,6 +90,8 @@ extern thread_local uint32_t g_nvn2_compute_ssbo_count;
 extern thread_local uint32_t g_nvn2_compute_layout_end;
 extern thread_local bool g_nvn2_miss_log_this;
 extern thread_local bool g_all_global_this;
+extern thread_local bool g_nvn2_page_first_this;
+extern thread_local bool g_nvn2_lookup_dedup_this;
 }
 namespace agvk {
 struct NvnState;
@@ -976,7 +978,7 @@ uint64_t disk_stamp() {
         "RX_VK_AFTERGLOW", "RX_VK_MMA", "RX_VK_NATIVE", "RX_VK_NAN", "RX_VK_TASK_CAP", "RX_VK_NETWORK", "RX_VK_GP",
         "RX_VK_FOLLOW", "RX_VK_NO_FOLLOW", "RX_VK_NO_F16", "RX_VK_SHARED", "RX_VK_MESH", "EDEN_",
         "RX_VK_PTR_SPLIT_FALLBACK", "RX_VK_NO_CBUF_LOAD_RULE", "RX_VK_MISS_LOG", "RX_VK_BLOCK_PROBE", "RX_VK_ALL_GLOBAL_PROGS",
-        "RX_VK_NO_DRAW_PARAMS",
+        "RX_VK_NO_DRAW_PARAMS", "RX_VK_GLOBAL_PAGE_FIRST", "RX_VK_GLOBAL_LOOKUP_DEDUP",
     };
     for (char** e = _environ; e && *e; e++)
         for (const char* pre : translation_env)
@@ -1343,11 +1345,44 @@ void program_cache_load(uint64_t key, std::vector<std::unique_ptr<Program>>& var
     program_cache_read(disk_in, &disk_mu, key, recs, variants);
 }
 
+struct ProgramTranslationKnobs {
+    ProgramTranslationKnobs(uint64_t key) {
+        char hex[24];
+        snprintf(hex, sizeof hex, "%016llx", (unsigned long long)key);
+        static const char* only = getenv("RX_VK_MISS_LOG_PROG");
+        Shader::Optimization::g_nvn2_miss_log_this = !only || !strncmp(hex, only, strlen(only));
+
+        auto knob_matches = [&](const char* name) -> bool {
+            const char* val = getenv(name);
+            if (!val) return false;
+            if (!strcmp(val, "1") || !strcmp(val, "all")) return true;
+            for (const char* q = val; *q;) {
+                const char* e = strchr(q, ',');
+                const size_t len = e ? (size_t)(e - q) : strlen(q);
+                if (len && !strncmp(hex, q, len)) return true;
+                q = e ? e + 1 : q + len;
+            }
+            return false;
+        };
+
+        bool page_first = knob_matches("RX_VK_GLOBAL_PAGE_FIRST");
+        const bool lookup_dedup = knob_matches("RX_VK_GLOBAL_LOOKUP_DEDUP");
+        if (lookup_dedup) page_first = true;
+        Shader::Optimization::g_nvn2_page_first_this = page_first;
+        Shader::Optimization::g_nvn2_lookup_dedup_this = lookup_dedup;
+    }
+    ~ProgramTranslationKnobs() {
+        Shader::Optimization::g_nvn2_page_first_this = false;
+        Shader::Optimization::g_nvn2_lookup_dedup_this = false;
+    }
+};
+
 void translate_into(Program& p, const NvnState& s, const Code* vsc, const Code* fsc, const Code* csc,
                     const Code* tcsc, const Code* tesc, const uint8_t color_types[8]) {
     const auto t0 = std::chrono::steady_clock::now();
     QuestionsNoted noted{p};
     ptr_diag_reset();
+    ProgramTranslationKnobs knobs{p.key};
     try {
         Shader::Backend::Bindings bindings{};
         int questions = 0;
@@ -1598,6 +1633,7 @@ void translate_mesh_into(Program& p, const NvnState& s, const Code* task, const 
     const auto t0 = std::chrono::steady_clock::now();
     QuestionsNoted noted{p};
     ptr_diag_reset();
+    ProgramTranslationKnobs knobs{p.key};
     {   // (EvilOOT, RX_VK_MISS_LOG_PROG=<key prefix>: the miss log for that program only)
         static const char* only = getenv("RX_VK_MISS_LOG_PROG");
         char hex[24];

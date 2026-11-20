@@ -21,6 +21,11 @@
 #include "shader_recompiler/backend/spirv/mma_layout.h"
 #include "shader_recompiler/backend/spirv/spirv_emit_context.h"
 
+namespace Shader::Optimization {
+extern thread_local bool g_nvn2_page_first_this;
+extern thread_local bool g_nvn2_lookup_dedup_this;
+}
+
 namespace Shader::Backend::SPIRV {
 namespace {
 enum class Operation {
@@ -1100,6 +1105,17 @@ void EmitContext::DefineGlobalMemoryFunctions(const Info& info) {
         SetMemoryModel(spv::AddressingModel::PhysicalStorageBuffer64, spv::MemoryModel::GLSL450);
         ptr_u64 = TypePointer(spv::StorageClass::PhysicalStorageBuffer, U64);
     }
+    const bool page_first{(Optimization::g_nvn2_page_first_this || Optimization::g_nvn2_lookup_dedup_this) && gp_level >= 3};
+    const bool dedup{Optimization::g_nvn2_lookup_dedup_this && page_first && follow_pointers};
+    Id last_guest_page{};
+    Id last_device_page{};
+    if (dedup) {
+        const Id u64_ptr{TypePointer(spv::StorageClass::Private, U64)};
+        last_guest_page = AddGlobalVariable(u64_ptr, spv::StorageClass::Private, Constant(U64, ~u64{0}));
+        last_device_page = AddGlobalVariable(u64_ptr, spv::StorageClass::Private, Constant(U64, u64{0}));
+        interfaces.push_back(last_guest_page);
+        interfaces.push_back(last_device_page);
+    }
     // (a load through an address as glslang makes one: a pointer to a laid-out block, its member read. A pointer to a bare scalar crashed
     // NVIDIA's shader compiler)
     std::map<u32, std::pair<Id, Id>> psb_types;   // (by the type's id)
@@ -1165,6 +1181,11 @@ void EmitContext::DefineGlobalMemoryFunctions(const Info& info) {
         OpSelectionMerge(miss_label, spv::SelectionControlMask::MaskNone);
         OpBranchConditional(mapped, hit_label, miss_label);
         AddLabel(hit_label);
+        if (dedup) {
+            const Id page_base{OpBitwiseAnd(U64, addr, Constant(U64, ~u64{0xfff}))};
+            OpStore(last_guest_page, page_base);
+            OpStore(last_device_page, page);
+        }
         hit(OpIAdd(U64, page, OpBitwiseAnd(U64, addr, Constant(U64, u64{0xfff}))));
         AddLabel(miss_label);
         OpBranch(else_label);
@@ -1359,12 +1380,32 @@ void EmitContext::DefineGlobalMemoryFunctions(const Info& info) {
         const Id function_type{TypeFunction(type, U64)};
         const Id func_id{OpFunction(type, spv::FunctionControlMask::DontInline, function_type)};
         const Id addr{OpFunctionParameter(U64)};
-        define_body(ssbo_member, addr, element_pointer, shift,
-                    [&](Id ssbo_pointer) { OpReturnValue(OpLoad(type, ssbo_pointer)); });
-        guest_lookup(addr, 1U << shift, [&](Id target) {
+        const auto page_value{[&](Id target) {
             if (gp_level >= 3) OpReturnValue(psb_load(type, target, 4U));
             else OpReturnValue(ConstantNull(type));
-        });
+        }};
+        if (page_first) AddLabel();
+        if (dedup) {
+            const u32 size{1U << shift};
+            const Id page_offset{OpBitwiseAnd(U64, addr, Constant(U64, u64{0xfff}))};
+            const Id page_base{OpBitwiseAnd(U64, addr, Constant(U64, ~u64{0xfff}))};
+            const Id fits{OpULessThanEqual(U1, page_offset, Constant(U64, u64{0x1000 - size}))};
+            const Id cached_base{OpLoad(U64, last_guest_page)};
+            const Id match{OpIEqual(U1, page_base, cached_base)};
+            const Id hit_fast{OpLogicalAnd(U1, fits, match)};
+            const Id fast_hit_label{OpLabel()};
+            const Id fast_miss_label{OpLabel()};
+            OpSelectionMerge(fast_miss_label, spv::SelectionControlMask::MaskNone);
+            OpBranchConditional(hit_fast, fast_hit_label, fast_miss_label);
+            AddLabel(fast_hit_label);
+            const Id cached_dev{OpLoad(U64, last_device_page)};
+            OpReturnValue(psb_load(type, OpIAdd(U64, cached_dev, page_offset), 4U));
+            AddLabel(fast_miss_label);
+        }
+        if (page_first) guest_lookup(addr, 1U << shift, page_value);
+        define_body(ssbo_member, addr, element_pointer, shift,
+                    [&](Id ssbo_pointer) { OpReturnValue(OpLoad(type, ssbo_pointer)); }, !page_first);
+        if (!page_first) guest_lookup(addr, 1U << shift, page_value);
         OpReturnValue(ConstantNull(type));
         OpFunctionEnd();
         return func_id;
