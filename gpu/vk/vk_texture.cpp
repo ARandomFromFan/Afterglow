@@ -2095,7 +2095,10 @@ VkImageView texture_view(Texture* tex, const nvn_tex* t, const nvn_view* v, VkIm
     uint32_t nlayers = v && v->set_layers && v->nlayers ? v->nlayers : total_layers - layer0;
     nlayers = std::clamp<uint32_t>(nlayers, 1, total_layers - layer0);
     VkImageAspectFlags aspect = tex->aspect;
-    if (use != ViewUse::Attachment && aspect == (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT))
+    static const bool stencil_view_enabled = getenv("RX_VK_STENCIL_VIEW") && atoi(getenv("RX_VK_STENCIL_VIEW"));
+    if (stencil_view_enabled && use == ViewUse::Sample && v && v->stencil && (tex->aspect & VK_IMAGE_ASPECT_STENCIL_BIT))
+        aspect = VK_IMAGE_ASPECT_STENCIL_BIT;
+    else if (use != ViewUse::Attachment && aspect == (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT))
         aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
     if (use == ViewUse::Attachment) {
         nlevels = 1, nlayers = 1;
@@ -2160,6 +2163,10 @@ VkImageView texture_view(Texture* tex, const nvn_tex* t, const nvn_view* v, VkIm
         }
         static const bool swap_9e5 = getenv("RX_VK_9E5_SWAP") != nullptr;   // (afterglow, diagnosis: R and B swapped)
         if (swap_9e5 && nf == NVN_FORMAT_RGB9E5F) std::swap(sw[0], sw[2]);
+        if (aspect == VK_IMAGE_ASPECT_STENCIL_BIT) {
+            for (unsigned& s : sw)
+                if (s == NVN_TEXTURE_SWIZZLE_G) s = NVN_TEXTURE_SWIZZLE_R;
+        }
         cm = {component(sw[0]), component(sw[1]), component(sw[2]), component(sw[3])};
         static const bool log_swizzle = getenv("RX_VK_LOG_SWIZZLE") != nullptr;   // (afterglow: RGB9E5 and R11G11B10 views)
         static int swizzle_logged;
@@ -2180,6 +2187,10 @@ VkImageView texture_view(Texture* tex, const nvn_tex* t, const nvn_view* v, VkIm
                                   : depth ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
                                           : VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     const VkImageView view = make_view(tex, type, f, aspect, level0, nlevels, layer0, nlayers, cm, usage);
+    if (aspect == VK_IMAGE_ASPECT_STENCIL_BIT && view) {
+        static bool s_logged = false;
+        if (!s_logged) { s_logged = true; logf("vk: stencil view enabled"); }
+    }
     if (!view) {
         static int logged;
         if (logged++ < 16)

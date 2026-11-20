@@ -356,6 +356,8 @@ bool handle_is_integer(uint32_t handle) {
     nvn_view v;
     bool has_view = false;
     if (!handle || !texture_of((int)(handle & 0xFFFFF), &t, &v, &has_view)) return false;
+    static const bool stencil_view_enabled = getenv("RX_VK_STENCIL_VIEW") && atoi(getenv("RX_VK_STENCIL_VIEW"));
+    if (stencil_view_enabled && has_view && v.stencil && has_stencil(vk_format(t.d.format).format)) return true;
     const VkFormat f = vk_format(has_view && v.set_format ? v.format : t.d.format).format;
     switch (f) {
     case VK_FORMAT_R8_UINT: case VK_FORMAT_R8_SINT: case VK_FORMAT_R8G8_UINT: case VK_FORMAT_R8G8_SINT:
@@ -978,7 +980,7 @@ uint64_t disk_stamp() {
         "RX_VK_AFTERGLOW", "RX_VK_MMA", "RX_VK_NATIVE", "RX_VK_NAN", "RX_VK_TASK_CAP", "RX_VK_NETWORK", "RX_VK_GP",
         "RX_VK_FOLLOW", "RX_VK_NO_FOLLOW", "RX_VK_NO_F16", "RX_VK_SHARED", "RX_VK_MESH", "EDEN_",
         "RX_VK_PTR_SPLIT_FALLBACK", "RX_VK_NO_CBUF_LOAD_RULE", "RX_VK_MISS_LOG", "RX_VK_BLOCK_PROBE", "RX_VK_ALL_GLOBAL_PROGS",
-        "RX_VK_NO_DRAW_PARAMS", "RX_VK_GLOBAL_PAGE_FIRST", "RX_VK_GLOBAL_LOOKUP_DEDUP",
+        "RX_VK_NO_DRAW_PARAMS", "RX_VK_GLOBAL_PAGE_FIRST", "RX_VK_GLOBAL_LOOKUP_DEDUP", "RX_VK_STENCIL_VIEW",
     };
     for (char** e = _environ; e && *e; e++)
         for (const char* pre : translation_env)

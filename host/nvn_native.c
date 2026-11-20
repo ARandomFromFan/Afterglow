@@ -767,10 +767,13 @@ NV(nvnTextureViewSetSwizzle) {
     for (int i = 0; i < 4; i++) v->swz[i] = (uint8_t)U32(i + 1);
 }
 NV(nvnTextureViewSetDepthStencilMode) {
-    static int s_logged = 0;
-    if (!s_logged++) {
-        hos_log("[STUB] Whitelisted non-aborting stub: nvnTextureViewSetDepthStencilMode(view=%p, mode=%d)", P(0), I(1));
-    }
+    nvn_view *v = VW(P(0));
+    v->stencil = (I(1) == NVN_TEXTURE_DEPTH_STENCIL_MODE_STENCIL);
+}
+NV(nvnTextureViewGetDepthStencilMode) {
+    const nvn_view *v = CVW(P(0));
+    *(int *)P(1) = v->stencil ? NVN_TEXTURE_DEPTH_STENCIL_MODE_STENCIL : NVN_TEXTURE_DEPTH_STENCIL_MODE_DEPTH;
+    RET(1);
 }
 NV(nvnTextureViewGetLevels) { const nvn_view *v = CVW(P(0)); *(int *)P(1) = v->base_level; *(int *)P(2) = v->nlevels; RET(v->set_levels); }
 NV(nvnTextureViewGetLayers) { const nvn_view *v = CVW(P(0)); *(int *)P(1) = v->min_layer; *(int *)P(2) = v->nlayers; RET(v->set_layers); }
@@ -2717,6 +2720,7 @@ static const nvn_impl impls[] = {
     {"nvnTextureViewGetLayers", n_nvnTextureViewGetLayers},
     {"nvnTextureViewGetFormat", n_nvnTextureViewGetFormat},
     {"nvnTextureViewGetTarget", n_nvnTextureViewGetTarget},
+    {"nvnTextureViewGetDepthStencilMode", n_nvnTextureViewGetDepthStencilMode},
     {"nvnTextureGetViewOffset", n_nvnTextureGetViewOffset},
     {"nvnTextureReadTexels", n_nvnTextureReadTexels},
     {"nvnTextureReadTexelsStrided", n_nvnTextureReadTexelsStrided},

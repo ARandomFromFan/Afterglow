@@ -78,7 +78,7 @@ typedef struct {
 } nvn_tex;
 /* TOTK reserves 16 bytes for a view on its stack (main+0x823398): packed */
 typedef struct {
-    uint8_t set_levels : 1, set_layers : 1, set_format : 1, set_target : 1, set_swizzle : 1, pad0 : 3;
+    uint8_t set_levels : 1, set_layers : 1, set_format : 1, set_target : 1, set_swizzle : 1, stencil : 1, pad0 : 2;
     uint8_t base_level, nlevels, target; uint16_t min_layer, nlayers; uint16_t format; uint8_t swz[4]; uint8_t pad1[2];
 } nvn_view;
 _Static_assert(sizeof(nvn_view) == 16, "NVNtextureView is 16 bytes in TOTK's NVN");

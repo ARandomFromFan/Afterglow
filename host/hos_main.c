@@ -634,7 +634,6 @@ static const StubWhitelistEntry g_stub_whitelist[] = {
     { "_ZN2nn2ro12ProtectRelroEPKvS2_S2_S2_S2_", 0, "RELRO write protection handled by host recompiler" },
     { "_ZN2nn6socket10InitializeERKNS0_6ConfigE", 0, "Socket library initialization stub returning ResultSuccess" },
     { "_ZN2nn6socket13IsInitializedEv", 1, "Socket library IsInitialized query returning true consistent with Initialize" },
-    { "nvnTextureViewSetDepthStencilMode", 0, "Texture view depth/stencil mode selection stub" },
     { NULL, 0, NULL }
 };
 
