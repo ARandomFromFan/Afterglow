@@ -123,6 +123,7 @@ Designed after totk-pc-recomp's runtime/vk_*.c (MIT) and Eden's renderer_vulkan,
 - **Passes** stay open while the targets stay; clears run inside them (`vkCmdClearAttachments`, cut by the scissor,
   a full-screen triangle for channel masks); a target the fragment shader does not write keeps its texels (write
   mask 0); duplicate attachments are left unattached; draws without targets get the viewport's area.
+- **Global lookup dedup** (`spirv_emit_context.cpp`): skips guest page table walks for loads within the last-used 4 KB page (on by default, `RX_VK_GLOBAL_LOOKUP_DEDUP=0` turns it off; implies page-first).
 - **Descriptors**: one set in Eden's order, pushed (`VK_KHR_push_descriptor`) when it fits; storage images, texel
   buffers, custom border colours, min/max samplers. Handles resolve once a recording (`handle_hits`).
 - **Pipelines**: whatever Vulkan 1.3 and `VK_EXT_extended_dynamic_state3` take as dynamic is dynamic; graphics

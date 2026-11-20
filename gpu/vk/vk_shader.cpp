@@ -1355,9 +1355,10 @@ struct ProgramTranslationKnobs {
         static const char* only = getenv("RX_VK_MISS_LOG_PROG");
         Shader::Optimization::g_nvn2_miss_log_this = !only || !strncmp(hex, only, strlen(only));
 
-        auto knob_matches = [&](const char* name) -> bool {
+        auto knob_matches = [&](const char* name, bool def = false) -> bool {
             const char* val = getenv(name);
-            if (!val) return false;
+            if (!val) return def;
+            if (!strcmp(val, "0")) return false;
             if (!strcmp(val, "1") || !strcmp(val, "all")) return true;
             for (const char* q = val; *q;) {
                 const char* e = strchr(q, ',');
@@ -1368,8 +1369,9 @@ struct ProgramTranslationKnobs {
             return false;
         };
 
-        bool page_first = knob_matches("RX_VK_GLOBAL_PAGE_FIRST");
-        const bool lookup_dedup = knob_matches("RX_VK_GLOBAL_LOOKUP_DEDUP");
+        // on unless RX_VK_GLOBAL_LOOKUP_DEDUP=0, implies page-first
+        bool page_first = knob_matches("RX_VK_GLOBAL_PAGE_FIRST", false);
+        const bool lookup_dedup = knob_matches("RX_VK_GLOBAL_LOOKUP_DEDUP", true);
         if (lookup_dedup) page_first = true;
         Shader::Optimization::g_nvn2_page_first_this = page_first;
         Shader::Optimization::g_nvn2_lookup_dedup_this = lookup_dedup;

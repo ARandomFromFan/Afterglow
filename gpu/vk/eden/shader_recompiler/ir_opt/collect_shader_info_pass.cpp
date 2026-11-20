@@ -986,9 +986,9 @@ thread_local u32 g_nvn2_compute_layout_end{0};
 thread_local bool g_nvn2_miss_log_this{true};
 /// (RX_VK_ALL_GLOBAL_PROGS=<key prefix>[,...], a test: the program's memory accesses all left global, none bound)
 thread_local bool g_all_global_this{false};
-/// (RX_VK_GLOBAL_PAGE_FIRST: guest page table checked before storage buffers)
+/// (RX_VK_GLOBAL_PAGE_FIRST: guest page table checked before storage buffers; off by default, implied by dedup)
 thread_local bool g_nvn2_page_first_this{false};
-/// (RX_VK_GLOBAL_LOOKUP_DEDUP: dedup page table lookups for loads in the same 4 KB page)
+/// (RX_VK_GLOBAL_LOOKUP_DEDUP: on unless =0, dedup page table lookups in same 4 KB page)
 thread_local bool g_nvn2_lookup_dedup_this{false};
 
 void CollectShaderInfoPass(Environment& env, IR::Program& program) {
