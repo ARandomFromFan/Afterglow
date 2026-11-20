@@ -29,7 +29,7 @@ Known issues:
 
 - Linux on x86-64
 - A Vulkan driver with `VK_EXT_mesh_shader` and `VK_EXT_external_memory_host`
-- clang, lld, Python 3, pkg-config
+- clang, lld, pkg-config, and Python 3 with the `lz4` package; SDL2, FFmpeg, Opus and OpenSSL for the game
 - Your own dump of the game: `exefs` and `romfs`
 
 ## Building
@@ -48,6 +48,17 @@ python3 scripts/build.py
 ```
 
 "Successfully linked" at the end of step 3 means it worked. A failed link prints `*** LINK FAILED ***` and leaves the old binary in place.
+
+### With Nix
+
+`nix build` builds the renderer and packages it with the lifter and scripts. `nix develop` gives a shell with the whole toolchain for the steps above. The packaged `afterglow` command works on your own dump, so no game code enters the Nix store:
+
+```sh
+export WORK_DIR=~/afterglow GAME_DIR=/path/to/dump   # GAME_DIR holds exefs/ and romfs/
+nix run . -- lift    # step 1
+nix run . -- build   # step 3, then copies afterglow_vk.so next to the game
+nix run . -- run
+```
 
 ## Running
 

@@ -56,6 +56,9 @@ def parse_args():
     return p.parse_args()
 
 def get_nix_paths():
+    given = [os.environ.get(k) for k in ("VULKAN_HEADERS_DIR", "SPIRV_HEADERS_DIR", "VMA_DIR", "VULKAN_LOADER_DIR")]
+    if all(given):   # (set by flake.nix: the sandbox has no nix-build)
+        return tuple(given)
     try:
         r = subprocess.run([
             "nix-build", "<nixpkgs>",
