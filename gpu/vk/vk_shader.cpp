@@ -356,7 +356,8 @@ bool handle_is_integer(uint32_t handle) {
     nvn_view v;
     bool has_view = false;
     if (!handle || !texture_of((int)(handle & 0xFFFFF), &t, &v, &has_view)) return false;
-    static const bool stencil_view_enabled = getenv("RX_VK_STENCIL_VIEW") && atoi(getenv("RX_VK_STENCIL_VIEW"));
+    // on unless RX_VK_STENCIL_VIEW=0
+    static const bool stencil_view_enabled = !getenv("RX_VK_STENCIL_VIEW") || atoi(getenv("RX_VK_STENCIL_VIEW")) != 0;
     if (stencil_view_enabled && has_view && v.stencil && has_stencil(vk_format(t.d.format).format)) return true;
     const VkFormat f = vk_format(has_view && v.set_format ? v.format : t.d.format).format;
     switch (f) {

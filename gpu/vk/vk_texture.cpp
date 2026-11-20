@@ -2095,7 +2095,8 @@ VkImageView texture_view(Texture* tex, const nvn_tex* t, const nvn_view* v, VkIm
     uint32_t nlayers = v && v->set_layers && v->nlayers ? v->nlayers : total_layers - layer0;
     nlayers = std::clamp<uint32_t>(nlayers, 1, total_layers - layer0);
     VkImageAspectFlags aspect = tex->aspect;
-    static const bool stencil_view_enabled = getenv("RX_VK_STENCIL_VIEW") && atoi(getenv("RX_VK_STENCIL_VIEW"));
+    // on unless RX_VK_STENCIL_VIEW=0
+    static const bool stencil_view_enabled = !getenv("RX_VK_STENCIL_VIEW") || atoi(getenv("RX_VK_STENCIL_VIEW")) != 0;
     if (stencil_view_enabled && use == ViewUse::Sample && v && v->stencil && (tex->aspect & VK_IMAGE_ASPECT_STENCIL_BIT))
         aspect = VK_IMAGE_ASPECT_STENCIL_BIT;
     else if (use != ViewUse::Attachment && aspect == (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT))
