@@ -1851,6 +1851,15 @@ Texture* texture_get(const nvn_tex* t, bool for_sampling) {
     return texture_touch(tex, for_sampling);
 }
 
+uint64_t texture_last_value_at(uint64_t gpu) {
+    if (!gpu) return 0;
+    uint64_t v = 0;
+    auto [a, b] = by_gpu.equal_range(gpu);
+    for (auto it = a; it != b; ++it)
+        if (it->second->last_value > v) v = it->second->last_value;
+    return v;
+}
+
 uint64_t texture_destroy_generation() {
     return destroy_gen;
 }

@@ -3163,9 +3163,32 @@ void present_image(VkImage src, uint32_t sw, uint32_t sh, const int crop[4], VkI
 namespace {
 
 void set_texture_pool_size(int) {}
+static void wait_texture_use(const nvn_tex* t) {
+    uint64_t v = 0;
+    if (t) {
+        {
+            std::lock_guard lk(replay_mu);
+            v = texture_last_value_at(t->gpu);
+        }
+        if (const uint64_t g = host->gpu_guest(t->gpu))
+            v = std::max(v, memory_writeback_value(g, t->L.size, nullptr));
+    }
+    const uint64_t last_pushed = pushed.load();
+    if (v > last_pushed) {
+        finish();
+    } else if (v > 0) {
+        wait_queue_empty();
+        wait_value(v);
+    }
+}
 void read_texels(const nvn_tex* t, unsigned level, unsigned layer0, const NVNcopyRegion* r, uint8_t* dst, uint64_t row,
                  uint64_t img) {
-    finish();   // (what the submits before it wrote)
+    static const bool targeted = getenv("RX_VK_READ_TEXELS_WAIT") != nullptr;
+    if (targeted) {
+        wait_texture_use(t);
+    } else {
+        finish();   // (what the submits before it wrote)
+    }
     std::lock_guard lk(replay_mu);
     {   // (RX_VK_LOG_READ_TEXELS=1: the CPU reading textures back, 200 lines: are they ones the GPU wrote?)
         static const bool log_reads = getenv("RX_VK_LOG_READ_TEXELS") != nullptr;
@@ -3211,7 +3234,12 @@ void vmap_changing(uint64_t gpu, uint64_t size) {
 }
 void write_texels(const nvn_tex* t, unsigned level, unsigned layer0, const NVNcopyRegion* r, const uint8_t* src,
                   uint64_t row, uint64_t img) {
-    finish();   // (after the submits before it read the texture)
+    static const bool targeted = getenv("RX_VK_WRITE_TEXELS_WAIT") != nullptr;
+    if (targeted) {
+        wait_texture_use(t);
+    } else {
+        finish();   // (after the submits before it read the texture)
+    }
     std::lock_guard lk(replay_mu);
     texture_read_texels(t, level, layer0, r, const_cast<uint8_t*>(src), row, img, true);
 }

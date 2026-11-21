@@ -142,4 +142,5 @@ Designed after totk-pc-recomp's runtime/vk_*.c (MIT) and Eden's renderer_vulkan,
 - **Headless**: without a window presents render offscreen; `RX_VK_SHOTS=<dir>` writes every `RX_VK_SHOT_EVERY`-th
   as a PNG. `work/run-vk.ps1` runs it (refuses while Siege runs, stops past `-MaxGB` of working set);
   `work/vksum.py <run>` summarises the log.
+- **Texel read/write waits** (`vk_replay.cpp`): `RX_VK_READ_TEXELS_WAIT=1` and `RX_VK_WRITE_TEXELS_WAIT=1` make CPU texel reads and writes wait only for the last submission that used the texture or wrote its memory, instead of draining the queue (off by default).
 - **Stencil views** (`vk_texture.cpp`): depth-stencil views sample the stencil aspect (on by default, `RX_VK_STENCIL_VIEW=0` turns it off).
