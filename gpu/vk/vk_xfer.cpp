@@ -63,8 +63,12 @@ bool resolve(const nvn_tex* t, const nvn_view* v, bool has_v, const NVNcopyRegio
         return false;
     }
     s.nvn_format = view_nvn_format(t, view);
-    s.aspect = s.tex->aspect == (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT) ? VK_IMAGE_ASPECT_DEPTH_BIT
-                                                                                          : s.tex->aspect;
+    // on unless RX_VK_COPY_STENCIL_ASPECT=0: a stencil-mode view copies the stencil plane
+    static const bool copy_stencil = !getenv("RX_VK_COPY_STENCIL_ASPECT") || atoi(getenv("RX_VK_COPY_STENCIL_ASPECT")) != 0;
+    if (s.tex->aspect == (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT))
+        s.aspect = copy_stencil && view && view->stencil ? VK_IMAGE_ASPECT_STENCIL_BIT : VK_IMAGE_ASPECT_DEPTH_BIT;
+    else
+        s.aspect = s.tex->aspect;
     if (view_level(view) < s.tex->skip && scaled_ok && !s.tex->bc && s.tex->type == VK_IMAGE_TYPE_2D) {
         // (texture copies into a level the image left out, MKW's terrain textures streamed into level 0: into its
         // first level, scaled down)
@@ -93,6 +97,7 @@ bool resolve(const nvn_tex* t, const nvn_view* v, bool has_v, const NVNcopyRegio
     const uint32_t ld = s.tex->type == VK_IMAGE_TYPE_3D ? std::max(1u, s.tex->depth >> s.level) : 1;
     s.bpb = (uint32_t)nvn_block_size(s.tex->nvn_format, &s.bw, &s.bh);
     if (s.tex->astc) s.bpb = 4, s.bw = s.bh = 1;   // (the decoded texels)
+    if (s.aspect == VK_IMAGE_ASPECT_STENCIL_BIT) s.bpb = 1, s.bw = s.bh = 1;
     s.x = r.xoffset, s.y = r.yoffset;
     s.w = r.width > 0 ? (uint32_t)r.width : (s.x >= 0 && (uint32_t)s.x < lw ? lw - (uint32_t)s.x : 0);
     s.h = r.height > 0 ? (uint32_t)r.height : (s.y >= 0 && (uint32_t)s.y < lh ? lh - (uint32_t)s.y : 0);
@@ -245,7 +250,7 @@ void copy_t2t(VkCommandBuffer cmd, NvnState& st, const nvn_p_copy_tt& p) {
         return;
     }
     const bool color = s.aspect == VK_IMAGE_ASPECT_COLOR_BIT && d.aspect == VK_IMAGE_ASPECT_COLOR_BIT;
-    if (!color && s.tex->format != d.tex->format) {
+    if (!color && (s.tex->format != d.tex->format || s.aspect != d.aspect)) {
         warn(7, "texture copy between unlike depth formats: skipped");
         return;
     }

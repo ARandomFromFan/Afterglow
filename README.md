@@ -76,6 +76,7 @@ The overlay (`Insert` or `F1`) sets display and graphics options in `afterglow_o
 - `HOS_WINDOW_SIZE=0|1|2|3`: windowed mode resolution (0 = 1280x720 default, 1 = 1920x1080, 2 = 2560x1440, 3 = 3840x2160; applies on restart).
 - `RX_VK_PRESENT_MODE=0|1|2`: presentation mode (0 = Auto/mailbox default, 1 = VSync/FIFO, 2 = Uncapped/immediate; `RX_VK_FIFO` and `RX_VK_IMMEDIATE` override).
 - `RX_VK_STENCIL_VIEW=0|1`: sample stencil aspect from depth-stencil views (1 = default on, 0 = off).
+- `RX_VK_COPY_STENCIL_ASPECT=0|1`: copy the stencil plane when a texture copy uses a stencil-mode view (1 = default on, 0 = copy depth).
 
 ## Contributing
 
