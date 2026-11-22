@@ -3183,7 +3183,7 @@ static void wait_texture_use(const nvn_tex* t) {
 }
 void read_texels(const nvn_tex* t, unsigned level, unsigned layer0, const NVNcopyRegion* r, uint8_t* dst, uint64_t row,
                  uint64_t img) {
-    static const bool targeted = getenv("RX_VK_READ_TEXELS_WAIT") != nullptr;
+    static const bool targeted = !getenv("RX_VK_READ_TEXELS_WAIT") || atoi(getenv("RX_VK_READ_TEXELS_WAIT")) != 0;
     if (targeted) {
         wait_texture_use(t);
     } else {
@@ -3234,7 +3234,7 @@ void vmap_changing(uint64_t gpu, uint64_t size) {
 }
 void write_texels(const nvn_tex* t, unsigned level, unsigned layer0, const NVNcopyRegion* r, const uint8_t* src,
                   uint64_t row, uint64_t img) {
-    static const bool targeted = getenv("RX_VK_WRITE_TEXELS_WAIT") != nullptr;
+    static const bool targeted = !getenv("RX_VK_WRITE_TEXELS_WAIT") || atoi(getenv("RX_VK_WRITE_TEXELS_WAIT")) != 0;
     if (targeted) {
         wait_texture_use(t);
     } else {
