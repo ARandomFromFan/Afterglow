@@ -16,9 +16,20 @@ static uint64_t vsync_events[8];
 static volatile LONG nvsync;
 static HANDLE vsync_thread;
 
+/* HOS_VSYNC_HZ: vsync and present pacing rate, 30-240 (default 60) */
+static int vsync_hz(void) {
+    static int vhz = -1;
+    if (vhz < 0) {
+        vhz = getenv("HOS_VSYNC_HZ") ? atoi(getenv("HOS_VSYNC_HZ")) : 60;
+        if (vhz < 30) vhz = 30;
+        if (vhz > 240) vhz = 240;
+    }
+    return vhz;
+}
+
 static DWORD WINAPI vsync_main(void *p) {
     (void)p;
-    const int64_t period = 1000000000LL / 60;
+    const int64_t period = 1000000000LL / vsync_hz();
     int64_t next = hos_now_ns() + period;
     for (;;) {
         const int64_t now = hos_now_ns();
@@ -275,7 +286,7 @@ void hos_vi_native_presented(void) {
         if (ms < 0) ms = getenv("HOS_FRAME_SLEEP_MS") ? atoi(getenv("HOS_FRAME_SLEEP_MS")) : 0;
         if (ms) hos_sleep_ns(ms * 1000000LL);
     }
-    const int64_t period = 1000000000LL / 60 * present_interval, now = hos_now_ns();
+    const int64_t period = 1000000000LL / vsync_hz() * present_interval, now = hos_now_ns();
     realtime_step(now);
     /* (behind by more than a frame: the next one is paced from now, with no burst to catch up) */
     next_frame_at = next_frame_at && now - next_frame_at < period ? next_frame_at + period : now + period;
