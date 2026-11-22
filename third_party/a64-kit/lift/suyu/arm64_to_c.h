@@ -6683,7 +6683,7 @@ static RECOMP_INLINE int recomp_fpx_div32(uint64_t a, uint64_t b, uint32_t fz, u
     (void)a; (void)b; (void)fz; (void)v; return 0;
 }
 static RECOMP_INLINE int recomp_fpx_fma32(uint64_t a, uint64_t b, uint64_t z, uint32_t fz, uint64_t* v) {
-#if RECOMP_FPX_HOST == 1
+#if RECOMP_FPX_HOST == 1 || (RECOMP_FPX_HOST == 2 && defined(__FMA__))
     const uint64_t t = recomp_fpx_fb(__builtin_fmaf(recomp_fpx_f(a), recomp_fpx_f(b), recomp_fpx_f(z)));
 #elif RECOMP_FPX_HOST == 2
     const double s = (double)recomp_fpx_f(a) * (double)recomp_fpx_f(b) + (double)recomp_fpx_f(z);

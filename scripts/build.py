@@ -169,6 +169,10 @@ def main():
         "-fno-unroll-loops",
         "-I" + gen_dir,
     ]
+    fma3_on = os.environ.get("A64_FPX_FMA3") == "1"
+    if fma3_on:
+        print("Build: A64_FPX_FMA3 enabled (-mfma -ffp-contract=off)")
+        chunk_cflags += ["-mfma", "-ffp-contract=off"]
     for s in chunk_srcs:
         base = os.path.splitext(os.path.basename(s))[0]
         o = os.path.join(obj_dir, base + ".o")
