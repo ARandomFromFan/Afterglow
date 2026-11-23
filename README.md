@@ -27,7 +27,7 @@ Known issues:
 
 ## Requirements
 
-- Linux on x86-64
+- Linux on x86-64 with FMA3 (Intel Haswell or AMD Piledriver and newer; build with `A64_FPX_FMA3=0` otherwise)
 - A Vulkan driver with `VK_EXT_mesh_shader` and `VK_EXT_external_memory_host`
 - clang, lld, pkg-config, and Python 3 with the `lz4` package; SDL2, FFmpeg, Opus and OpenSSL for the game
 - Your own dump of the game: `exefs` and `romfs`
