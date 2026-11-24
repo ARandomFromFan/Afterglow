@@ -1623,7 +1623,12 @@ VkSampler sampler_for(int id, bool compare) {
 }
 VkSampler sampler_make(int id, bool compare) {
     nvn_samp_par p{};
-    if (!sampler_of(id, &p)) p.minf = NVN_MIN_FILTER_LINEAR, p.magf = NVN_MAG_FILTER_LINEAR, p.lod_max = 1000.0f;
+    if (!sampler_of(id, &p)) {
+        p.minf = NVN_MIN_FILTER_LINEAR, p.magf = NVN_MAG_FILTER_LINEAR, p.lod_max = 1000.0f;
+        // (RX_VK_SLOT0_ZERO_TSC=1: compute handles name slot 0, which is never registered; its zero pool bytes are a TSC that wraps)
+        static const bool zero_tsc = getenv("RX_VK_SLOT0_ZERO_TSC") != nullptr;
+        if (zero_tsc && id == 0) p.ws = p.wt = p.wr = NVN_WRAP_MODE_REPEAT, p.lod_max = 0.0f;
+    }
     uint64_t key = mix(compare ? 0xC0 : 0xAB, aniso_override());
     const uint8_t* b = reinterpret_cast<const uint8_t*>(&p);
     for (size_t i = 0; i < sizeof p; i += 8) {
