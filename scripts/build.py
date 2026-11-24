@@ -110,11 +110,14 @@ def main():
     args.chunk_opt = args.chunk_opt.upper()
     gen_dir = os.path.join(args.work, "sa", "gen")
     build_dir = os.path.join(args.work, "sa", "build")
-    obj_subdir = f"obj_{args.chunk_opt}"
+    # soft CPU write watch (A64_WRITE_TRACK), default on; AFTERGLOW_WRITE_TRACK=0 builds without it in obj_<opt>
+    wt_flags = ["-DA64_WRITE_TRACK"] if os.environ.get("AFTERGLOW_WRITE_TRACK", "1") != "0" else []
+    opt_tag = args.chunk_opt + ("_wt" if wt_flags else "")
+    obj_subdir = f"obj_{opt_tag}"
     obj_dir = os.path.join(build_dir, obj_subdir)
     if not args.dry_run:
         # Link legacy obj to obj_O1 when available to preserve seeded caches
-        if args.chunk_opt == "O1" and not os.path.exists(obj_dir) and os.path.exists(os.path.join(build_dir, "obj")):
+        if opt_tag == "O1" and not os.path.exists(obj_dir) and os.path.exists(os.path.join(build_dir, "obj")):
             try:
                 os.symlink("obj", obj_dir)
             except OSError:
@@ -168,7 +171,7 @@ def main():
         "-fno-vectorize", "-fno-slp-vectorize",
         "-fno-unroll-loops",
         "-I" + gen_dir,
-    ]
+    ] + wt_flags
     fma3_on = os.environ.get("A64_FPX_FMA3", "1") != "0"
     if fma3_on:
         print("Build: A64_FPX_FMA3 enabled (-mfma -ffp-contract=off)")
@@ -189,6 +192,7 @@ def main():
         cmd = [
             "clang", "-O1", "-g0",
             "-I" + gen_dir,
+        ] + wt_flags + [
             "-MD", "-MF", o + ".d",
             "-c", s, "-o", o
         ]
@@ -207,7 +211,7 @@ def main():
             "-I" + os.path.join(args.host, "posix"),
             "-I" + os.path.join(os.path.dirname(args.host), "third_party", "stb"),
             "-D_GNU_SOURCE",
-        ] + pkg_cflags + [
+        ] + wt_flags + pkg_cflags + [
             "-MD", "-MF", o + ".d",
             "-c", s, "-o", o
         ]
@@ -247,7 +251,7 @@ def main():
 
     # Link executable
     print(f"Linking {exe_path} from {len(all_objs)} object files ({args.chunk_opt})...")
-    rsp_path = os.path.join(build_dir, f"objs_{args.chunk_opt}.rsp")
+    rsp_path = os.path.join(build_dir, f"objs_{opt_tag}.rsp")
     with open(rsp_path, "w") as f:
         f.write("\n".join(f'"{o}"' for o in all_objs) + "\n")
 
