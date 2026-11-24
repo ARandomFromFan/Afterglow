@@ -5086,9 +5086,14 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
         st_waits++;
         st_wait_ms += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
     };
+    // A draw whose program is still translating waits, and for its new pipeline too (the first title press left out a glow
+    // into a persistent target, and the copy after it showed a black bar). RX_VK_WAIT_TRANSLATE=0: left out, as before
+    static const bool wait_translate = !getenv("RX_VK_WAIT_TRANSLATE") || atoi(getenv("RX_VK_WAIT_TRANSLATE")) != 0;
+    bool waited_program = false;
     if (!cp->ready.load(std::memory_order_acquire)) {
-        if (may_skip) return void(st_pending_skips++);
+        if (may_skip && !wait_translate) return void(st_pending_skips++);
         wait_for(cp->ready);
+        waited_program = true;
     }
     if (exposure_log_on() && cp) exposure_note(s, *cp);
     if (cp->failed) SKIP_HERE();
@@ -5170,7 +5175,7 @@ void draw(VkCommandBuffer cmd, NvnState& s, const DrawArgs& d) {
         pe = graphics_pipeline(p, s, at, topo, types);
     }
     if (!pe->ready.load(std::memory_order_acquire)) {
-        if (may_skip) return void(st_pending_skips++);
+        if (may_skip && !waited_program) return void(st_pending_skips++);
         wait_for(pe->ready);
     }
     const VkPipeline pl = pe->pipeline;
