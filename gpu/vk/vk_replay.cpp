@@ -47,6 +47,10 @@ void hang_watch_start();   // (EvilOOT, vk_hangdump.cpp: RX_VK_HANG_DUMP)
 struct CondNote { int64_t present; uint64_t addr, x, y; int mode; bool on; };   // (the last render conditions, for a dark frame)
 CondNote cond_ring[1 << 15];
 uint32_t cond_ring_at = 0;
+// (RX_VK_OCC_STEP: report words a render condition read; they keep the fixed count so no condition flips)
+// shortcut: direct-mapped, an evicted word steps again; use a real set if the log's skip count looks wrong
+static uint64_t occ_cond_words[1 << 16];
+static uint64_t& occ_cond_slot(uint64_t addr) { return occ_cond_words[(addr >> 4) & ((1 << 16) - 1)]; }
 namespace {
 
 // ---- submissions: a timeline semaphore; value n = the n-th submit done ----
@@ -757,7 +761,23 @@ void replay(VkCommandBuffer& cmd, NvnState& s, const uint8_t* p, const uint8_t* 
             // ground and the haze brightened over the whole picture (one-frame flicker, most of it at load-in; 30-52 per 2,700
             // frames in Kokiri, 4-6 with this, RX 7900 GRE). RX_VK_OCC_FIXED=<n>: that value; -1: the per-draw count as before
             static const int64_t occ_fixed = getenv("RX_VK_OCC_FIXED") ? atoll(getenv("RX_VK_OCC_FIXED")) : 4096;
-            const uint64_t rec[2] = {samples ? (occ_fixed >= 0 ? (uint64_t)occ_fixed : s.samples_passed) : 0, ns * 12 / 625};
+            // (RX_VK_OCC_STEP=1: the count times a running report number, so end - begin reads visible; f_844cdf80 wants >= 11)
+            static const bool occ_step = occ_fixed > 0 && getenv("RX_VK_OCC_STEP") && atoi(getenv("RX_VK_OCC_STEP")) == 1;
+            static std::atomic<uint64_t> occ_n{0}, occ_skipped{0};
+            uint64_t occ = occ_fixed >= 0 ? (uint64_t)occ_fixed : s.samples_passed;
+            if (samples && occ_step) {
+                static std::once_flag told;
+                std::call_once(told, [] { logf("vk: RX_VK_OCC_STEP on: occlusion counts step by %lld a report", (long long)occ_fixed); });
+                if (occ_cond_slot(c.addr) == c.addr) {
+                    const uint64_t k = ++occ_skipped;   // (logs the first 4, then each power of two)
+                    if (k <= 4 || !(k & (k - 1)))
+                        logf("vk: RX_VK_OCC_STEP: report at %#llx is read by a render condition: fixed count kept (%llu so far)",
+                             (unsigned long long)c.addr, (unsigned long long)k);
+                } else {
+                    occ = (uint64_t)occ_fixed * (occ_n.fetch_add(1, std::memory_order_relaxed) + 1);
+                }
+            }
+            const uint64_t rec[2] = {samples ? occ : 0, ns * 12 / 625};
             if (dump_on())
                 logf("vk: dump-op %03d REPORT_COUNTER type %d at %#llx: %llu", dump_seq(), (int)c.type,
                      (unsigned long long)c.addr, (unsigned long long)rec[0]);
@@ -1068,6 +1088,7 @@ void replay(VkCommandBuffer& cmd, NvnState& s, const uint8_t* p, const uint8_t* 
                 break;
             }
             const auto r = payload<nvn_p_render_cond>(a, avail);
+            occ_cond_slot(r.addr) = r.addr, occ_cond_slot(r.addr + 16) = r.addr + 16;
             uint64_t x = r.x, y = r.y;
             if (!r.snapped) {
                 host->gpu_read(r.addr, &x, 8);
