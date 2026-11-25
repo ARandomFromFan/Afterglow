@@ -638,13 +638,13 @@ void hos_thread_pin(void *h, const char *name) {
 
 /* ---- time ------------------------------------------------------------------------------------------------ */
 uint64_t hos_ticks(void) { return recomp_cntpct(NULL); }
-/* HOS_TICK_31M=1: count at HOS_TICK_HZ (31.25 MHz) instead of 19.2 MHz; overrides a64_rt.c's weak hook */
+/* Count at HOS_TICK_HZ (31.25 MHz) by default; overrides a64_rt.c's weak hook (HOS_TICK_31M=0: 19.2 MHz as before) */
 static int tick_31m(void) {
     static int on = -1;
     int v = __atomic_load_n(&on, __ATOMIC_ACQUIRE);
     if (v < 0) {
         const char *e = getenv("HOS_TICK_31M");
-        v = e && atoi(e) == 1;
+        v = !e || atoi(e) != 0;
         __atomic_store_n(&on, v, __ATOMIC_RELEASE);
     }
     return v;
