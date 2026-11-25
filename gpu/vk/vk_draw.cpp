@@ -2254,9 +2254,15 @@ void build_descriptors(const NvnState& s, const Program& p) {
                     const uint64_t cap = getenv("RX_VK_BARE_READ_MB") ? (uint64_t)atoll(getenv("RX_VK_BARE_READ_MB")) << 20 : reach;
                     return std::max<uint64_t>(1ull << 20, std::min(cap, reach - std::min<uint64_t>(reach, 64ull << 10)));
                 }();
+                // RX_VK_BARE_WRITE_KB=<KB> (or _MB=<MB>): written bare SSBO cap (1 MB default)
+                static const uint64_t bare_write = []() -> uint64_t {
+                    if (const char* k = getenv("RX_VK_BARE_WRITE_KB")) return (uint64_t)std::clamp<long long>(atoll(k), 64, 1LL << 20) << 10;
+                    if (const char* m = getenv("RX_VK_BARE_WRITE_MB")) return (uint64_t)std::clamp<long long>(atoll(m), 1, 1024) << 20;
+                    return 1ull << 20;
+                }();
                 if (d.count > 1 && !size && addr && !(addr & 3) && host->gpu_guest(addr))
                     if (const uint64_t end = gpu_pool_end(addr); end > addr)
-                        size = std::min<uint64_t>(end - addr, d.is_written ? (1ull << 20) : bare_read) & ~3ull, bare = true;
+                        size = std::min<uint64_t>(end - addr, d.is_written ? bare_write : bare_read) & ~3ull, bare = true;
                 // (EvilOOT) the pointer table's regions (c0+0x880, vk_bank.cpp pointer_table) are guesses too: GPU-only, as above
                 if (d.cbuf_index == 0 && d.cbuf_offset == 0x880 && d.count == 3) bare = true;
                 // (Fritchii's storage buffer pass, Info::native_global_bounds) a program whose accesses pick among candidate
@@ -2270,7 +2276,7 @@ void build_descriptors(const NvnState& s, const Program& p) {
                     const uint64_t end = gpu_pool_end(addr);
                     const bool sized = size && !stage_cbuf_word(s, st, d.cbuf_index, off + 12) && end > addr && size <= end - addr;
                     if (!sized && end > addr)
-                        size = std::min<uint64_t>(end - addr, d.is_written ? (1ull << 20) : (8ull << 20)) & ~3ull, bare = true;
+                        size = std::min<uint64_t>(end - addr, d.is_written ? bare_write : (8ull << 20)) & ~3ull, bare = true;
                 }
                 const uint64_t base = addr & ~(salign - 1);
                 uint64_t n = std::max<uint64_t>(((size + (addr - base)) + 3) & ~3ull, 16);
