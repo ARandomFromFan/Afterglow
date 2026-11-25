@@ -1550,7 +1550,8 @@ void translate_into(Program& p, const NvnState& s, const Code* vsc, const Code* 
                 ert.tess_primitive = s.patch_size == 4 ? Shader::TessPrimitive::Quads : Shader::TessPrimitive::Triangles;
                 ert.tess_spacing = Shader::TessSpacing::Equal;
                 ert.tess_clockwise = false;
-                static const bool tess_domain = getenv("RX_VK_TESS_DOMAIN") && atoi(getenv("RX_VK_TESS_DOMAIN")) == 1;
+                // (RX_VK_TESS_DOMAIN=0: guess from patch_size as before)
+                static const bool tess_domain = !getenv("RX_VK_TESS_DOMAIN") || atoi(getenv("RX_VK_TESS_DOMAIN")) != 0;
                 if (tess_domain) tess_from_control(*tesc, ert);
                 ert.convert_depth_mode = host->depth_minus_w() != 0;
                 dump_ir(p, "tess_eval", tes->program);
