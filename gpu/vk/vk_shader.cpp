@@ -142,6 +142,7 @@ struct Code {
     // (task / mesh: control section +0x58 threads 15:0, payload bytes 31:16; +0x60 max primitives 15:0, max vertices
     // 31:16; +0x5f the output topology, 1 points, 3 triangles)
     uint32_t mesh_threads = 0, payload_bytes = 0, max_vertices = 0, max_primitives = 0, topology = 0;
+    uint32_t tess_mode = 0, tess_spacing = 0, tess_order = 0;   // TES: control +0x58/+0x5c/+0x64, GL enums (0: none)
     bool header_only = false;       // a graphics header and no code (NVN2's per-primitive output map of a mesh program)
     uint8_t sph[sizeof(Shader::ProgramHeader)]{};
     bool ok = false;
@@ -178,6 +179,19 @@ Code read_code(const nvn_stage_data& sd) {
     return parse_code(ctl, area);
 }
 
+/// TES domain, spacing and winding from its control section
+void tess_from_control(const Code& c, Shader::RuntimeInfo& rt) {
+    using P = Shader::TessPrimitive;
+    using S = Shader::TessSpacing;
+    if (c.tess_mode == 0x7) rt.tess_primitive = P::Quads;   // (GL_QUADS, GL_TRIANGLES, GL_ISOLINES)
+    else if (c.tess_mode == 0x4) rt.tess_primitive = P::Triangles;
+    else if (c.tess_mode == 0x8E7A) rt.tess_primitive = P::Isolines;
+    if (c.tess_spacing == 0x0202) rt.tess_spacing = S::Equal;   // (GL_EQUAL, GL_FRACTIONAL_ODD, GL_FRACTIONAL_EVEN)
+    else if (c.tess_spacing == 0x8E7B) rt.tess_spacing = S::FractionalOdd;
+    else if (c.tess_spacing == 0x8E7C) rt.tess_spacing = S::FractionalEven;
+    if (c.tess_order == 0x0900 || c.tess_order == 0x0901) rt.tess_clockwise = c.tess_order == 0x0900;   // (GL_CW, GL_CCW)
+}
+
 /// A control section and its code, from the game's memory or the archives (the seed)
 Code parse_code(const uint8_t* ctl, const std::vector<uint8_t>& area) {
     Code c;
@@ -196,6 +210,10 @@ Code parse_code(const uint8_t* ctl, const std::vector<uint8_t>& area) {
         c.mesh_threads = w58 & 0xFFFF, c.payload_bytes = w58 >> 16;
         c.max_primitives = w60 & 0xFFFF, c.max_vertices = w60 >> 16;
         c.topology = ctl[0x5f];
+    }
+    if (st == 4) {
+        std::memcpy(&c.tess_mode, ctl + 0x58, 4), std::memcpy(&c.tess_spacing, ctl + 0x5c, 4);
+        std::memcpy(&c.tess_order, ctl + 0x64, 4);
     }
     const bool graphics = st != 5;
     const uint32_t hdr = graphics ? kAmpereHeader : 0;
@@ -981,7 +999,7 @@ uint64_t disk_stamp() {
         "RX_VK_AFTERGLOW", "RX_VK_MMA", "RX_VK_NATIVE", "RX_VK_NAN", "RX_VK_TASK_CAP", "RX_VK_NETWORK", "RX_VK_GP",
         "RX_VK_FOLLOW", "RX_VK_NO_FOLLOW", "RX_VK_NO_F16", "RX_VK_SHARED", "RX_VK_MESH", "EDEN_",
         "RX_VK_PTR_SPLIT_FALLBACK", "RX_VK_NO_CBUF_LOAD_RULE", "RX_VK_MISS_LOG", "RX_VK_BLOCK_PROBE", "RX_VK_ALL_GLOBAL_PROGS",
-        "RX_VK_NO_DRAW_PARAMS", "RX_VK_GLOBAL_PAGE_FIRST", "RX_VK_GLOBAL_LOOKUP_DEDUP", "RX_VK_STENCIL_VIEW",
+        "RX_VK_NO_DRAW_PARAMS", "RX_VK_TESS_DOMAIN", "RX_VK_GLOBAL_PAGE_FIRST", "RX_VK_GLOBAL_LOOKUP_DEDUP", "RX_VK_STENCIL_VIEW",
     };
     for (char** e = _environ; e && *e; e++)
         for (const char* pre : translation_env)
@@ -1532,6 +1550,8 @@ void translate_into(Program& p, const NvnState& s, const Code* vsc, const Code* 
                 ert.tess_primitive = s.patch_size == 4 ? Shader::TessPrimitive::Quads : Shader::TessPrimitive::Triangles;
                 ert.tess_spacing = Shader::TessSpacing::Equal;
                 ert.tess_clockwise = false;
+                static const bool tess_domain = getenv("RX_VK_TESS_DOMAIN") && atoi(getenv("RX_VK_TESS_DOMAIN")) == 1;
+                if (tess_domain) tess_from_control(*tesc, ert);
                 ert.convert_depth_mode = host->depth_minus_w() != 0;
                 dump_ir(p, "tess_eval", tes->program);
                 const std::vector<uint32_t> espirv = Shader::Backend::SPIRV::EmitSPIRV(profile(), ert, tes->program, bindings);
