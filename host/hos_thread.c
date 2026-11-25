@@ -638,6 +638,27 @@ void hos_thread_pin(void *h, const char *name) {
 
 /* ---- time ------------------------------------------------------------------------------------------------ */
 uint64_t hos_ticks(void) { return recomp_cntpct(NULL); }
+/* HOS_TICK_31M=1: count at HOS_TICK_HZ (31.25 MHz) instead of 19.2 MHz; overrides a64_rt.c's weak hook */
+static int tick_31m(void) {
+    static int on = -1;
+    int v = __atomic_load_n(&on, __ATOMIC_ACQUIRE);
+    if (v < 0) {
+        const char *e = getenv("HOS_TICK_31M");
+        v = e && atoi(e) == 1;
+        __atomic_store_n(&on, v, __ATOMIC_RELEASE);
+    }
+    return v;
+}
+uint64_t a64_cntpct_host(void);
+uint64_t a64_cntpct_host(void) {
+    static int64_t base;
+    const int64_t ns = hos_now_ns();
+    int64_t b = __atomic_load_n(&base, __ATOMIC_ACQUIRE), zero = 0;
+    if (!b && !__atomic_compare_exchange_n(&base, &zero, ns, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) b = zero;
+    /* (a read racing the first one can predate the base: 0, not a wrapped count) */
+    const uint64_t d = b && ns > b ? (uint64_t)(ns - b) : 0;
+    return tick_31m() ? d / (1000000000ULL / HOS_TICK_HZ) : d * 192ULL / 10000ULL;
+}
 
 int64_t hos_now_ns(void) {
     static LARGE_INTEGER freq;
@@ -940,11 +961,19 @@ HLE(_ZN2nn2os22GetSystemTickFrequencyEv) { RET(HOS_TICK_HZ); }
 /* (afterglow) At the counter's own rate, HOS_TICK_HZ (31.25 MHz: 32 ns a tick). These converted at the Switch 1's
    19.2 MHz (ticks = ns * 12 / 625) while GetSystemTick counts 31.25 MHz, so a tick span came out 1.63x too long: OoT's
    present slept 1.63 ms for its 1 ms poll step (0x80590500: SleepThread(ConvertToTimeSpan(frequency / 1000))), and
-   any of its timing through these was off by as much. HOS_TICK_CONVERT_192=1: as before */
+   any of its timing through these was off by as much. HOS_TICK_CONVERT_192=1: as before (ignored with HOS_TICK_31M) */
 static int tick_convert_192(void) {
     static int on = -1;
-    if (on < 0) on = getenv("HOS_TICK_CONVERT_192") != NULL;
-    return on;
+    int v = __atomic_load_n(&on, __ATOMIC_ACQUIRE);
+    if (v >= 0) return v;
+    const int want = getenv("HOS_TICK_CONVERT_192") != NULL;
+    v = want && !tick_31m();
+    int expected = -1;
+    if (__atomic_compare_exchange_n(&on, &expected, v, 0, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
+        if (want && !v) hos_log("time: HOS_TICK_CONVERT_192 ignored: HOS_TICK_31M counts at the converted rate");
+        return v;
+    }
+    return expected;
 }
 HLE(_ZN2nn2os13ConvertToTickENS_8TimeSpanE) {
     int64_t ns = (int64_t)ARG(0);
