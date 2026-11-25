@@ -761,8 +761,8 @@ void replay(VkCommandBuffer& cmd, NvnState& s, const uint8_t* p, const uint8_t* 
             // ground and the haze brightened over the whole picture (one-frame flicker, most of it at load-in; 30-52 per 2,700
             // frames in Kokiri, 4-6 with this, RX 7900 GRE). RX_VK_OCC_FIXED=<n>: that value; -1: the per-draw count as before
             static const int64_t occ_fixed = getenv("RX_VK_OCC_FIXED") ? atoll(getenv("RX_VK_OCC_FIXED")) : 4096;
-            // (RX_VK_OCC_STEP=1: the count times a running report number, so end - begin reads visible; f_844cdf80 wants >= 11)
-            static const bool occ_step = occ_fixed > 0 && getenv("RX_VK_OCC_STEP") && atoi(getenv("RX_VK_OCC_STEP")) == 1;
+            // (RX_VK_OCC_STEP on, =0 off: count x report n, so end - begin reads visible; f_844cdf80 wants >= 11)
+            static const bool occ_step = occ_fixed > 0 && (!getenv("RX_VK_OCC_STEP") || atoi(getenv("RX_VK_OCC_STEP")) != 0);
             static std::atomic<uint64_t> occ_n{0}, occ_skipped{0};
             uint64_t occ = occ_fixed >= 0 ? (uint64_t)occ_fixed : s.samples_passed;
             if (samples && occ_step) {
