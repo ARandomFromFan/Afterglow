@@ -2248,17 +2248,17 @@ void build_descriptors(const NvnState& s, const Program& p) {
                 // anywhere in: bound to the pool's end, as far as a storage buffer reaches (at most 1 GB). OoT's froxel fog
                 // finds its light probes this way, up to ~130 MB past the pointer: the probes past the binding read 0 and the
                 // fog took an overbright constant from them (the white haze, zones overexposed or too dark). Written ones keep
-                // 1 MB. RX_VK_BARE_READ_MB=<MB> caps it (1: as before)
+                // 2 MB by default. RX_VK_BARE_READ_MB=<MB> caps it (1: as before)
                 static const uint64_t bare_read = [] {
                     const uint64_t reach = std::min<uint64_t>(dev.props.limits.maxStorageBufferRange, 1ull << 30);
                     const uint64_t cap = getenv("RX_VK_BARE_READ_MB") ? (uint64_t)atoll(getenv("RX_VK_BARE_READ_MB")) << 20 : reach;
                     return std::max<uint64_t>(1ull << 20, std::min(cap, reach - std::min<uint64_t>(reach, 64ull << 10)));
                 }();
-                // RX_VK_BARE_WRITE_KB=<KB> (or _MB=<MB>): written bare SSBO cap (1 MB default)
+                // RX_VK_BARE_WRITE_KB=<KB> (or _MB=<MB>): written bare SSBO cap, 2 MB default (1 MB cuts floor, 4 MB drops vine)
                 static const uint64_t bare_write = []() -> uint64_t {
                     if (const char* k = getenv("RX_VK_BARE_WRITE_KB")) return (uint64_t)std::clamp<long long>(atoll(k), 64, 1LL << 20) << 10;
                     if (const char* m = getenv("RX_VK_BARE_WRITE_MB")) return (uint64_t)std::clamp<long long>(atoll(m), 1, 1024) << 20;
-                    return 1ull << 20;
+                    return 2ull << 20;
                 }();
                 if (d.count > 1 && !size && addr && !(addr & 3) && host->gpu_guest(addr))
                     if (const uint64_t end = gpu_pool_end(addr); end > addr)
@@ -2268,7 +2268,7 @@ void build_descriptors(const NvnState& s, const Program& p) {
                 // (Fritchii's storage buffer pass, Info::native_global_bounds) a program whose accesses pick among candidate
                 // pointers at run time: those are bare 8-byte arguments, the word after one another argument (a stride, a
                 // handle), not an NVN size. Unless that word looks like this pointer's size (its high half 0, inside the
-                // pool), bound to the pool's end, 8 MB at most (Fritchii's limit), 1 MB and GPU-only if written, as the
+                // pool), bound to the pool's end, 8 MB at most (Fritchii's limit), 2 MB and GPU-only if written, as the
                 // bare table entries above; the shaders take the binding's length as the end
                 // (afterglow) NVN2 programs also pack bare pointers 8 bytes apart (c7+0, c7+8) unmarked by the pass: any single
                 // one whose size word is not a size inside its pool is taken the same way
@@ -2319,7 +2319,7 @@ void build_descriptors(const NvnState& s, const Program& p) {
                 }
                 // (EvilOOT) a bare entry the program writes through: its first 64 bytes marked written (the same mirror), so
                 // the counts and records the culling setup writes there survive the mirror's syncs from guest memory and go
-                // back to it, as on the console; the rest of the guessed 1 MB stays the GPU's (copied back whole, it
+                // back to it, as on the console; the rest of the guessed 2 MB stays the GPU's (copied back whole, it
                 // overwrote the CPU's own data beside it)
                 if (b && bare && d.is_written && d.cbuf_offset != 0x880) {
                     const uint64_t head = std::min<uint64_t>(n, (addr - base) + 0x40);
