@@ -9,8 +9,8 @@
       pkgs = nixpkgs.legacyPackages.${system};
       lib = pkgs.lib;
       python = pkgs.python3.withPackages (p: [ p.lz4 ]);
-      toolchain = [ pkgs.clang pkgs.lld pkgs.pkg-config python ];
-      gameLibs = [ pkgs.SDL2 pkgs.ffmpeg pkgs.libopus pkgs.openssl ];
+      toolchain = [ pkgs.clang pkgs.lld pkgs.pkg-config python pkgs.librsvg ];   # librsvg: build.py renders the window icon
+      gameLibs = [ pkgs.SDL2 pkgs.sdl3 pkgs.ffmpeg pkgs.libopus pkgs.openssl ];   # sdl3: loaded first at run time (window icon)
       buildEnv = {
         VULKAN_HEADERS_DIR = "${pkgs.vulkan-headers}";
         SPIRV_HEADERS_DIR = "${pkgs.spirv-headers}";
@@ -42,7 +42,7 @@
           runHook preInstall
           share=$out/share/afterglow
           mkdir -p $share $out/lib/afterglow $out/bin
-          cp -r scripts lifter host third_party $share/
+          cp -r scripts lifter host third_party branding $share/
           cp work/afterglow_vk.so $out/lib/afterglow/
           substitute ${./scripts/afterglow.sh} $out/bin/afterglow \
             --subst-var-by share $share --subst-var-by lib $out/lib/afterglow

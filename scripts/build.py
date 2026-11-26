@@ -162,6 +162,11 @@ def main():
         pkg_libs = r.stdout.split()
     except Exception as e:
         print(f"Warning: pkg-config failed: {e}", file=sys.stderr)
+    # hos_sdl.c dlopens SDL3 first (window icon, newer input); its -L only becomes an rpath, nothing links it
+    if shutil.which("pkg-config"):
+        r = subprocess.run(["pkg-config", "--libs-only-L", "sdl3"], capture_output=True, text=True)
+        if r.returncode == 0:
+            pkg_libs += r.stdout.split()
 
     all_jobs = []
     # 1. Chunks
@@ -294,6 +299,20 @@ def main():
 
     exe_size_mb = os.path.getsize(exe_path) / (1024 * 1024)
     print(f"Successfully linked {exe_path} ({exe_size_mb:.1f} MB) in {time.time() - t_link:.2f}s")
+    write_icon(os.path.dirname(exe_path))
+
+def write_icon(out_dir):
+    """afterglow.png beside the game: the window icon display_sdl.c loads (SDL 3.4+)."""
+    svg = str(env.REPO / "branding" / "afterglow-sigil.svg")
+    png = os.path.join(out_dir, "afterglow.png")
+    if not os.path.exists(svg) or (os.path.exists(png) and os.path.getmtime(png) >= os.path.getmtime(svg)):
+        return
+    for tool in (["rsvg-convert", "-w", "256", "-h", "256", "-o", png, svg],
+                 ["magick", "-background", "none", svg, "-resize", "256x256", png]):
+        if shutil.which(tool[0]) and subprocess.run(tool).returncode == 0:
+            print(f"Window icon: {png}")
+            return
+    print("Window icon skipped: needs rsvg-convert or magick on PATH")
 
 if __name__ == "__main__":
     main()
