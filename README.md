@@ -56,7 +56,7 @@ python3 scripts/build.py
 ```sh
 export WORK_DIR=~/afterglow GAME_DIR=/path/to/dump   # GAME_DIR holds exefs/ and romfs/
 nix run . -- lift    # step 1
-nix run . -- build   # step 3, then copies afterglow_vk.so next to the game
+nix run . -- build   # step 3; step 2 comes prebuilt in the package and is copied next to the game
 nix run . -- run
 ```
 
