@@ -29,7 +29,7 @@ Known issues:
 
 - Linux on x86-64 with FMA3 (Intel Haswell or AMD Piledriver and newer; build with `A64_FPX_FMA3=0` otherwise)
 - A Vulkan driver with `VK_EXT_mesh_shader` and `VK_EXT_external_memory_host`
-- clang, lld, pkg-config, and Python 3 with the `lz4` package; SDL2, FFmpeg, Opus and OpenSSL for the game
+- clang, lld, pkg-config, and Python 3 with the `lz4` package; SDL3 (SDL2 works, without the window icon), FFmpeg, Opus and OpenSSL for the game; `rsvg-convert` or ImageMagick to render the window icon
 - Your own dump of the game: `exefs` and `romfs`
 
 ## Building
@@ -67,16 +67,16 @@ $WORK_DIR/duskbloods_game $WORK_DIR/sa/image/image.bin \
   --romfs $GAME_DIR/romfs --user $WORK_DIR/user
 ```
 
-Set `HOS_AUDIO=0` to run without sound. Online features need a CA at `pki/ca.der` in the working directory, or `HOS_NPLN_CA=/path/to/ca.der`.
+Set `HOS_AUDIO=0` to run without sound, and `HOS_VSYNC_HZ` (30-240, default 60) to match a high refresh rate display.
 
-The overlay (`Insert` or `F1`) sets display and graphics options in `afterglow_options.ini`, which environment variables can override:
-- `RX_VK_GLOBAL_LOOKUP_DEDUP=0|1`: reuse page table lookups within 4 KB pages (1 = default on, implies page-first; 0 = off).
+Online play needs `HOS_FORCE_ONLINE=1`, a server on `127.0.0.1:18443` and its CA at `pki/ca.der` in the working directory (or `HOS_NPLN_CA=/path/to/ca.der`). All connections stay on loopback, and port 443 maps to 18443. Without a server the title screen reports a network error.
+
+The overlay (`Insert` or `F1`) sets display, graphics and control options (presets, frame generation, upscaling, mouse camera and more) in `afterglow_options.ini`. Environment variables override some of them:
 - `HOS_RENDER_SCALE=0|1|2`: internal render resolution (0 = 100% 1920x1080 default, 1 = 80% 1536x864, 2 = 67% 1280x720).
 - `HOS_WINDOW_MODE=0|1|2`: window mode (0 = windowed default, 1 = borderless fullscreen, 2 = exclusive fullscreen; `HOS_FULLSCREEN=1` maps to borderless).
 - `HOS_WINDOW_SIZE=0|1|2|3`: windowed mode resolution (0 = 1280x720 default, 1 = 1920x1080, 2 = 2560x1440, 3 = 3840x2160; applies on restart).
 - `RX_VK_PRESENT_MODE=0|1|2`: presentation mode (0 = Auto/mailbox default, 1 = VSync/FIFO, 2 = Uncapped/immediate; `RX_VK_FIFO` and `RX_VK_IMMEDIATE` override).
-- `RX_VK_STENCIL_VIEW=0|1`: sample stencil aspect from depth-stencil views (1 = default on, 0 = off).
-- `RX_VK_COPY_STENCIL_ASPECT=0|1`: copy the stencil plane when a texture copy uses a stencil-mode view (1 = default on, 0 = copy depth).
+- `RX_VK_UPSCALE=0|1|2`: upscaling filter (0 = off, 1 = Catmull-Rom, 2 = Lanczos).
 
 ## Contributing
 
