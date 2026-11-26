@@ -1,4 +1,4 @@
-# Afterglow
+# <img src="branding/afterglow-sigil.svg" alt="" width="40" align="top"> Afterglow
 
 A native PC port of *The Duskbloods*, made by static recompilation. The game's AArch64 code is lifted to C, compiled for x86-64 and run on top of a high-level emulation (HLE) of the Switch 2 OS, with NVN2 graphics translated to Vulkan.
 
