@@ -78,7 +78,7 @@ The overlay (`Insert` or `F1`) sets display, graphics and control options (prese
 - `RX_VK_PRESENT_MODE=0|1|2`: presentation mode (0 = Auto/mailbox default, 1 = VSync/FIFO, 2 = Uncapped/immediate; `RX_VK_FIFO` and `RX_VK_IMMEDIATE` override).
 - `RX_VK_UPSCALE=0|1|2`: upscaling filter (0 = off, 1 = Catmull-Rom, 2 = Lanczos).
 
-`RX_VK_SSBO_PAIR_BARE=1` (off by default) fixes one-frame flashes of the scene over the HUD: storage buffer pointers packed 8 bytes apart are bound up to the end of their pool instead of reading the next word as a size.
+`RX_VK_SSBO_PAIR_BARE=0` turns off the fix for one-frame flashes of the scene over the HUD (on by default): storage buffer pointers packed 8 bytes apart are bound up to the end of their pool instead of reading the next word as a size.
 
 ## Contributing
 

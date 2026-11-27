@@ -2275,9 +2275,9 @@ void build_descriptors(const NvnState& s, const Program& p) {
                 if (d.count == 1 && d.cbuf_index != 0 && addr && !(addr & 3) && host->gpu_guest(addr)) {
                     const uint64_t end = gpu_pool_end(addr);
                     bool sized = size && !stage_cbuf_word(s, st, d.cbuf_index, off + 12) && end > addr && size <= end - addr;
-                    // (RX_VK_SSBO_PAIR_BARE=1) two pointers packed 8 bytes apart leave no room for a size word, so a single
-                    // storage descriptor within 16 bytes of this one in the same cbuf never takes the sized path
-                    static const bool pair_bare = getenv("RX_VK_SSBO_PAIR_BARE") != nullptr;
+                    // two pointers packed 8 bytes apart leave no room for a size word, so a single storage descriptor
+                    // within 16 bytes of this one in the same cbuf never takes the sized path (RX_VK_SSBO_PAIR_BARE=0 turns it off)
+                    static const bool pair_bare = [] { const char* v = getenv("RX_VK_SSBO_PAIR_BARE"); return !v || strcmp(v, "0"); }();
                     if (sized && pair_bare)
                         for (const auto& e : info.storage_buffers_descriptors) {
                             if (&e == &d || e.count != 1 || e.cbuf_index != d.cbuf_index) continue;
