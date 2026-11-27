@@ -2274,7 +2274,16 @@ void build_descriptors(const NvnState& s, const Program& p) {
                 // one whose size word is not a size inside its pool is taken the same way
                 if (d.count == 1 && d.cbuf_index != 0 && addr && !(addr & 3) && host->gpu_guest(addr)) {
                     const uint64_t end = gpu_pool_end(addr);
-                    const bool sized = size && !stage_cbuf_word(s, st, d.cbuf_index, off + 12) && end > addr && size <= end - addr;
+                    bool sized = size && !stage_cbuf_word(s, st, d.cbuf_index, off + 12) && end > addr && size <= end - addr;
+                    // (RX_VK_SSBO_PAIR_BARE=1) two pointers packed 8 bytes apart leave no room for a size word, so a single
+                    // storage descriptor within 16 bytes of this one in the same cbuf never takes the sized path
+                    static const bool pair_bare = getenv("RX_VK_SSBO_PAIR_BARE") != nullptr;
+                    if (sized && pair_bare)
+                        for (const auto& e : info.storage_buffers_descriptors) {
+                            if (&e == &d || e.count != 1 || e.cbuf_index != d.cbuf_index) continue;
+                            const long long gap = (long long)e.cbuf_offset - (long long)d.cbuf_offset;
+                            if (gap && gap > -16 && gap < 16) { sized = false; break; }
+                        }
                     if (!sized && end > addr)
                         size = std::min<uint64_t>(end - addr, d.is_written ? bare_write : (8ull << 20)) & ~3ull, bare = true;
                 }
