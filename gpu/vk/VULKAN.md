@@ -134,7 +134,8 @@ Designed after totk-pc-recomp's runtime/vk_*.c (MIT) and Eden's renderer_vulkan,
   of the range with it applied (`ub_overlay`).
 - **The VRAM mirror** (`vk_memory.cpp`, TOTK's): pools bound as buffers get a device-local copy at the next
   submission; CPU-written pages are copied in at each submission's first use, GPU writes go back to guest memory at
-  its end. `RX_VK_MIRROR=0` turns it off, `RX_VK_MIRROR_MB` (3072) is its budget.
+  its end. Off by default (UI index and uniform data reached the GPU stale through it); `RX_VK_MIRROR=1` turns it
+  on, `RX_VK_MIRROR_MB` (3072) is its budget.
 - **Mesh shading**: `NOP_DRAW_MESH` records NVN2's DrawMeshTasks*; programs whose code writes the internal stage
   buffer are the task / mesh stages (marked in their headers as Eden's GraphicsEnvironment does). Unverified.
 - **Frame interpolation** (`vk_framegen.cpp`, `RX_VK_FRAMEGEN=1`): the WebGPU renderer's, ported to GLSL
