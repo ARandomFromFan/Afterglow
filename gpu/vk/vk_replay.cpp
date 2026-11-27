@@ -2329,7 +2329,7 @@ uint32_t crc32(const uint8_t* p, size_t n, uint32_t c = 0xFFFFFFFFu) {
 }
 } // namespace
 
-void write_png(const char* path, const uint8_t* rgba, uint32_t w, uint32_t h) {
+bool write_png(const char* path, const uint8_t* rgba, uint32_t w, uint32_t h) {
     std::vector<uint8_t> raw;
     raw.reserve((size_t)(w * 4 + 1) * h);
     for (uint32_t y = 0; y < h; y++) {
@@ -2351,7 +2351,7 @@ void write_png(const char* path, const uint8_t* rgba, uint32_t w, uint32_t h) {
     const uint32_t adler = b << 16 | a;
     for (int i = 3; i >= 0; i--) z.push_back((uint8_t)(adler >> (i * 8)));
     FILE* f = fopen(path, "wb");
-    if (!f) return;
+    if (!f) return false;
     auto be32 = [&](uint32_t v) { uint8_t q[4] = {(uint8_t)(v >> 24), (uint8_t)(v >> 16), (uint8_t)(v >> 8), (uint8_t)v}; fwrite(q, 1, 4, f); };
     auto chunk = [&](const char* type, const uint8_t* d, size_t n) {
         be32((uint32_t)n);
@@ -2368,6 +2368,7 @@ void write_png(const char* path, const uint8_t* rgba, uint32_t w, uint32_t h) {
     chunk("IDAT", z.data(), z.size());
     chunk("IEND", nullptr, 0);
     fclose(f);
+    return true;
 }
 
 namespace {
@@ -2870,8 +2871,10 @@ void do_present(const nvn_tex* t, const int crop[4]) {
                      (double)sr / npix / 255.0, (double)sg / npix / 255.0,
                      (double)sb / npix / 255.0, (double)sa / npix / 255.0);
                 if (!path.empty()) {
-                    write_png(path.c_str(), px->data(), kShotW, kShotH);
-                    logf("vk: present %lld written to %s", (long long)at_present, path.c_str());
+                    if (write_png(path.c_str(), px->data(), kShotW, kShotH))
+                        logf("vk: present %lld written to %s", (long long)at_present, path.c_str());
+                    else
+                        logf("vk: present %lld NOT written: cannot open %s", (long long)at_present, path.c_str());
                 }
                 const char* hos_screenshot = std::getenv("HOS_SCREENSHOT");
                 if (hos_screenshot && do_hos) {
