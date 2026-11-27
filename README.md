@@ -27,7 +27,7 @@ Known issues:
 
 ## Requirements
 
-- Linux on x86-64 with FMA3 (Intel Haswell or AMD Piledriver and newer; build with `A64_FPX_FMA3=0` otherwise)
+- Linux on x86-64 with FMA3 (Intel Haswell or AMD Piledriver and newer; build with `A64_FPX_FMA3=0` otherwise). The default build also targets x86-64-v3 (AVX2: Intel Haswell or AMD Excavator and newer); pass `--chunk-opt O1` to `scripts/build.py` on older CPUs
 - A Vulkan driver with `VK_EXT_mesh_shader` and `VK_EXT_external_memory_host`
 - clang, lld, pkg-config, and Python 3 with the `lz4` package; SDL3 (SDL2 works, without the window icon), FFmpeg, Opus and OpenSSL for the game; `rsvg-convert` or ImageMagick to render the window icon
 - Your own dump of the game: `exefs` and `romfs`

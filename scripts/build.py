@@ -10,15 +10,15 @@ import time
 import env
 
 def parse_args():
-    env_opt = os.environ.get("BUILD_CHUNK_OPT", "O1").upper()
-    default_chunk_opt = env_opt if env_opt in ("O1", "O2") else "O1"
+    env_opt = os.environ.get("BUILD_CHUNK_OPT", "O2").upper()
+    default_chunk_opt = env_opt if env_opt in ("O1", "O2") else "O2"
     p = argparse.ArgumentParser(description="Compile and link duskbloods_game")
     p.add_argument("--work", default=env.WORK_DIR)
     p.add_argument("--host", default=str(env.REPO / "host"))
     p.add_argument("--jobs", "-j", type=int, default=12)
     p.add_argument("--force", action="store_true", help="Recompile all files")
     p.add_argument("--chunk-opt", choices=["O1", "O2", "o1", "o2"], default=default_chunk_opt,
-                   help="Optimization level for lifted chunks: O1 (default) or O2 (adds -march=x86-64-v3)")
+                   help="Optimization level for lifted chunks: O2 (default, adds -march=x86-64-v3) or O1")
     p.add_argument("--dry-run", "-n", action="store_true", help="Print compilation commands without running them")
     return p.parse_args()
 
