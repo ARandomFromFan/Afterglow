@@ -68,6 +68,11 @@ struct Pool {
     bool prefetched = false;     // (amd-fix) imported ahead by the background thread, not bound yet
 };
 uint64_t mem_rec_value = 0, mem_completed = 0;   // (the recording being made, and the GPU's progress)
+std::atomic<uint64_t> mem_rec_newest{0};   // (the highest value any thread has begun recording)
+static bool memo_stamp_on() {   // (RX_VK_MEMO_STAMP: the memo-hit stamp and the retire bound below)
+    static const bool on = getenv("RX_VK_MEMO_STAMP") != nullptr;
+    return on;
+}
 
 struct GuestPool {
     uint64_t lo = 0, hi = 0;   // (aligned outwards the same way, so an import covers what the lookup found)
@@ -1511,6 +1516,8 @@ const std::vector<std::pair<uint64_t, uint64_t>>& capture_ranges_merged() {
 }
 void memory_recording_value(uint64_t value, uint64_t completed) {
     mem_rec_value = value;
+    uint64_t seen = mem_rec_newest.load(std::memory_order_relaxed);   // (the newest, any thread)
+    while (seen < value && !mem_rec_newest.compare_exchange_weak(seen, value, std::memory_order_relaxed)) {}
     if (completed > mem_completed) mem_completed = completed;
 }
 bool take_capture(std::unique_ptr<Capture> c, uint64_t value, uint64_t completed) {
@@ -2035,7 +2042,7 @@ std::deque<std::map<uint64_t, Pool>::node_type> retired_pools;
 void retire_pool(std::map<uint64_t, Pool>::iterator it) {
     Pool* old = &it->second;
     guest_pages_set(old->lo, old->hi, 0);
-    old->retired_value = std::max(old->last_value, mem_rec_value);
+    old->retired_value = std::max(old->last_value, memo_stamp_on() ? mem_rec_newest.load(std::memory_order_relaxed) : mem_rec_value);
     std::erase(mirror_wanted, old);   // (the new pool gets the mirror)
     if (old->mstate == Pool::MIRROR_WANTED) old->mstate = Pool::MIRROR_NONE;
     // (EvilOOT, 11-07) what the GPU wrote into its mirror and nowhere else (the culling's bare table entries past their first
@@ -2350,6 +2357,7 @@ bool bind_memo_hit(uint64_t guest, uint64_t size, uint64_t stamp, uint64_t cache
 
 struct BindMemo {
     uint64_t guest = 0, size = 0, stamp = 0;
+    Pool* pool = nullptr;   // (the pool it came from: a memo hit stamps its last_value)
     BufferRef ref{};
 };
 thread_local BindMemo bind_memo[256];
@@ -2366,15 +2374,17 @@ BufferRef gpu_buffer_bind(uint64_t gpu, uint64_t size, bool written) {
     }
     // (the same read, while that stamp still stands: the buffer and the offset are the ones found before. a miss
     // runs the lookup below, including a mirror sync, and remembers what it returned. a write is not remembered)
-    auto remember = [&](BufferRef ref) {
+    auto remember = [&](BufferRef ref, Pool* pool) {
         if (!written && ref.buffer != VK_NULL_HANDLE && size)
-            bind_memo[bind_slot(guest, size)] = BindMemo{guest, size, gpu_bind_stamp(), ref};
+            bind_memo[bind_slot(guest, size)] = BindMemo{guest, size, gpu_bind_stamp(), pool, ref};
         return ref;
     };
     if (!written) {
         const BindMemo& m = bind_memo[bind_slot(guest, size)];
-        if (bind_memo_hit(guest, size, gpu_bind_stamp(), m.guest, m.size, m.stamp, m.ref.buffer != VK_NULL_HANDLE))
+        if (bind_memo_hit(guest, size, gpu_bind_stamp(), m.guest, m.size, m.stamp, m.ref.buffer != VK_NULL_HANDLE)) {
+            if (memo_stamp_on() && m.pool && m.pool->last_value < mem_rec_value) m.pool->last_value = mem_rec_value;
             return m.ref;
+        }
     }
     // (a read binding of a pool this thread found before and whose mirror is in use this submission or that has none,
     // without the lock: every thread's, the replay thread's too (each draw binds several uniform buffers: the pool's
@@ -2387,9 +2397,9 @@ BufferRef gpu_buffer_bind(uint64_t gpu, uint64_t size, bool written) {
         const uint64_t off = guest - p->lo;
         if (p->last_value < mem_rec_value) p->last_value = mem_rec_value;
         if (!mirror_on() || !mirror_upload || p->mstate == Pool::MIRROR_REFUSED || p->mstate == Pool::MIRROR_WANTED)
-            return remember({p->buffer, off, size, 0});
+            return remember({p->buffer, off, size, 0}, p);
         if (p->mstate == Pool::MIRROR_ON && p->synced_epoch == mirror_epoch && p->sync_seg <= texture_segment())
-            return remember({p->mirror, off, size, 0});
+            return remember({p->mirror, off, size, 0}, p);
     }
     ParLock plk;   // (before pools_mu, always: a mirror sync records into the shared upload command buffer)
     std::lock_guard lk(pools_mu);
@@ -2401,7 +2411,7 @@ BufferRef gpu_buffer_bind(uint64_t gpu, uint64_t size, bool written) {
     const uint64_t off = guest - p->lo;
     if (!mirror_on() || !mirror_upload || p->mstate == Pool::MIRROR_REFUSED) {
         if (mirror_on()) { auto& e = direct_by_pool[p->lo]; e.first++, e.second = mirror_upload ? (int)p->mstate : 9; direct_bytes_by_pool[p->lo] += size; }
-        return remember({p->buffer, off, size, 0});
+        return remember({p->buffer, off, size, 0}, p);
     }
     // (a pool's mirror is made at its first binding, in this part's uploads: bound in guest memory until the next
     // submission, the GPU read it there while the game's threads wrote it for their next frames, and a pass that drew
@@ -2427,11 +2437,11 @@ BufferRef gpu_buffer_bind(uint64_t gpu, uint64_t size, bool written) {
         if (written) p->direct_write_epoch = mirror_epoch;
         if (written && size <= (1u << 20))   // (EvilBoyce: GPU results written in place; small ones: the readbacks are)
             wb_pages_note(p->lo + off, p->lo + std::min(off + size, p->hi - p->lo), mem_rec_value);
-        return remember({p->buffer, off, size, 0});
+        return remember({p->buffer, off, size, 0}, p);
     }
     if (p->synced_epoch != mirror_epoch || p->sync_seg > texture_segment()) mirror_sync(*p);
     if (written) writebacks.push_back({p, off, std::min(off + size, p->hi - p->lo)});
-    return remember({p->mirror, off, size, 0});
+    return remember({p->mirror, off, size, 0}, p);
 }
 
 // ---- mirrors given back ----

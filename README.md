@@ -77,6 +77,7 @@ The overlay (`Insert` or `F1`) sets display, graphics and control options (prese
 - `HOS_WINDOW_SIZE=0|1|2|3`: windowed mode resolution (0 = 1280x720 default, 1 = 1920x1080, 2 = 2560x1440, 3 = 3840x2160; applies on restart).
 - `RX_VK_PRESENT_MODE=0|1|2`: presentation mode (0 = Auto/mailbox default, 1 = VSync/FIFO, 2 = Uncapped/immediate; `RX_VK_FIFO` and `RX_VK_IMMEDIATE` override).
 - `RX_VK_UPSCALE=0|1|2`: upscaling filter (0 = off, 1 = Catmull-Rom, 2 = Lanczos).
+- `RX_VK_MEMO_STAMP=1`: on a bind-memo hit, stamp the buffer's pool as in use, so a pool merge cannot free memory the GPU is still reading (off by default).
 
 `RX_VK_SSBO_PAIR_BARE=0` turns off the fix for one-frame flashes of the scene over the HUD (on by default): storage buffer pointers packed 8 bytes apart are bound up to the end of their pool instead of reading the next word as a size.
 
