@@ -233,6 +233,7 @@ bool prepare_is_update();
 void prepare_background();
 void state_list_run();                        // (an update: the state list's pipelines noted before precompile_run)
 void predict_run(void (*progress)(size_t done, size_t total));   // (after a prepare_run that prepared: the notes' predictions)
+int renderer_idle(uint64_t timeout_ns);   // (RX_VK_EXIT_IDLE=1: see vk_replay.cpp)
 void fill_replay_table(AgVkRenderer& t);     // vk_replay.cpp
 
 } // namespace agvk

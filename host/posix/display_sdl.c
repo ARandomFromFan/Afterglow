@@ -23,6 +23,7 @@
 
 int rx_start(void *hwnd);
 void rx_resize(int width, int height);
+int rx_idle(uint64_t timeout_ns);   /* (RX_VK_EXIT_IDLE=1: the renderer stops submitting and waits, bounded) */
 void hos_sdl_pads_pump(void);   /* host/pad_sdl.c: controllers, on this thread, as SDL's queue wants */
 
 volatile LONG64 hos_present_count;   /* (nvn_native.c: the game's presents) */
@@ -257,6 +258,8 @@ void hos_display_loop(void) {
                 switch (e.type) {
                 case HOS_SDL_EV_QUIT:
                 case HOS_SDL_EV_CLOSE:
+                    if (getenv("RX_VK_EXIT_IDLE"))   /* (the GPU is mid-frame: let the renderer go idle first, bounded) */
+                        hos_log("display: window closed, renderer %s", rx_idle(2000000000ull) ? "idle" : "still busy, exiting anyway");
                     hos_log("display: window closed, exiting");
                     hos_log_flush();
                     ExitProcess(0);

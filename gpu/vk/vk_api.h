@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-#define AGVK_API_VERSION 7
+#define AGVK_API_VERSION 8
 
 /* (afterglow) the controls' names (host/nn_hid.c, host/pad_sdl.c, the pad_ and key_ lines of afterglow_options.ini):
    the Switch's buttons in nn::hid's bit order, and a gamepad's inputs by position, SDL's order (the bottom face
@@ -145,6 +145,8 @@ typedef struct AgVkRenderer {
     /* (afterglow, the Insert menu) a setting changed from the game's side, kept in the options file: 7 the mouse's sensitivity
        in percent (the - and = keys, host/nn_hid.c) */
     void (*option_set)(int id, int value);
+    /* (RX_VK_EXIT_IDLE=1: stop taking submissions and wait for the queued GPU work, bounded; nonzero when idle) */
+    int (*idle)(uint64_t timeout_ns);
 } AgVkRenderer;
 
 /* the DLL's one export: null when Vulkan is not usable (the executable then falls back to WebGPU) */

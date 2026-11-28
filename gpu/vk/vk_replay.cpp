@@ -51,6 +51,9 @@ uint32_t cond_ring_at = 0;
 // shortcut: direct-mapped, an evicted word steps again; use a real set if the log's skip count looks wrong
 static uint64_t occ_cond_words[1 << 16];
 static uint64_t& occ_cond_slot(uint64_t addr) { return occ_cond_words[(addr >> 4) & ((1 << 16) - 1)]; }
+// (RX_VK_EXIT_IDLE=1: set once the window is closing, read by submit_q)
+static std::atomic<bool> exit_idle{false};
+
 namespace {
 
 // ---- submissions: a timeline semaphore; value n = the n-th submit done ----
@@ -3483,6 +3486,8 @@ bool replay_behind() {
 
 std::mutex submit_order_mu;   // (captures and submits queued in the same order)
 void submit_q(const uint64_t* handles, int n, uint64_t queue) {
+    // (RX_VK_EXIT_IDLE=1: the window is closing; take no more work, the host is about to wait for the GPU)
+    if (exit_idle.load(std::memory_order_relaxed)) return;
     if (!async_on()) {
         std::lock_guard order(sync_order_mu);
         // (the replay here is on the submitting thread, but the game's other threads go on writing their next frames: a pool
@@ -3675,6 +3680,15 @@ bool replay_start() {
     return true;
 }
 
+// (RX_VK_EXIT_IDLE=1: the window closed while the GPU was mid-frame - stop taking submissions, then wait for the work
+// already queued, bounded: whatever the GPU is doing, the exit goes on after the timeout. Off: returns at once.)
+int renderer_idle(uint64_t timeout_ns) {
+    if (!getenv("RX_VK_EXIT_IDLE")) return 1;
+    exit_idle.store(true, std::memory_order_relaxed);
+    const uint64_t f = fence();
+    return !f || wait(f, timeout_ns);
+}
+
 void fill_replay_table(AgVkRenderer& t) {
     t.stats = stats;
     t.nvn_submit = submit;
@@ -3686,6 +3700,7 @@ void fill_replay_table(AgVkRenderer& t) {
     t.nvn_wait = wait;
     t.wait_writebacks_reading = wait_writebacks_reading;
     t.nvn_finish = finish;
+    t.idle = renderer_idle;
     t.nvn_present = present;
     t.nvn_register_texture = register_texture_queued;
     t.nvn_event_signal = event_signal_queued;
