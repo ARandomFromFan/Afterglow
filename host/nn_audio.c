@@ -289,7 +289,9 @@ static float mb_gain(float mb) { return powf(10.0f, mb / 2000.0f); }
 static void reverb_frame(Reverb *rv, Mix *m) {
     static int off = -1;
     if (off < 0) off = getenv("HOS_AUDIO_NO_REVERB") != NULL;
-    if (off || !rv->enabled || rv->n <= 0) return;
+    extern volatile int hos_no_reverb;   /* (afterglow) the Insert menu's Reverb row, read every frame */
+    const int muted = hos_no_reverb;
+    if (off || muted || !rv->enabled || rv->n <= 0) return;
     static const int base_len[4] = {1559, 1617, 1491, 1422};
     const float density = rv->density > 0 ? rv->density / 100.0f : 1.0f;
     for (int k = 0; k < 4; k++) {

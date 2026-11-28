@@ -81,6 +81,7 @@ The overlay (`Insert` or `F1`) sets display, graphics and control options (prese
 - `RX_VK_EXIT_IDLE=1`: on window close, stop submitting and wait, bounded, for the queued GPU work before the process exits (off by default).
 - `HOS_FPS_LIMIT_OPT=1`: shows the FPS limit row in the overlay (Off, 30, 60, 90, 120, 144, 165, 240); the limit paces vsync and applies at once.
 - `HOS_DISPLAY_MODES=1`: lists the display's own modes and shows the Resolution row; the pick is kept as `display_mode=WxH` in `afterglow_options.ini` and applies on restart.
+- `HOS_REVERB_OPT=1`: shows the Reverb row in the overlay; off leaves the audio dry.
 
 `RX_VK_SSBO_PAIR_BARE=0` turns off the fix for one-frame flashes of the scene over the HUD (on by default): storage buffer pointers packed 8 bytes apart are bound up to the end of their pool instead of reading the next word as a size.
 

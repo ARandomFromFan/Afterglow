@@ -152,6 +152,7 @@ const char* tx_fps_limit(int v) {
     return t[std::min(std::max(v, 0), 7)];
 }
 static const int fps_limit_hz[8] = {0, 30, 60, 90, 120, 144, 165, 240};   /* (afterglow) 0: uncapped */
+void apply_reverb(void) { if (host && host->set_no_reverb) host->set_no_reverb(!opts.reverb); }
 void apply_fps_limit(void) {
     if (host && host->set_fps_limit) host->set_fps_limit(fps_limit_hz[std::min(std::max(opts.fps_limit, 0), 7)]);
 }
@@ -194,6 +195,8 @@ Row rows[] = {
      "The frame rate the game is paced at. Off leaves it uncapped; the steps pace vsync at their rate."},
     {TAB_GRAPHICS, "Resolution", &opts.display_mode, 0, 63, 1, tx_display_mode,
      "The display mode the game runs in, from the display's own list. Applies after a restart."},
+    {TAB_GRAPHICS, "Reverb", &opts.reverb, 0, 1, 1, tx_onoff,
+     "The audio's reverb. Off leaves the dry signal only, for headphones or a quiet room. Applies at once."},
     {TAB_GRAPHICS, "Render scale", &opts.render_scale, 0, 2, 1, tx_render_scale,
      "The internal resolution the game renders at: 100% (1080p), 80% (864p), or 67% (720p). Applies after a restart."},
     {TAB_GRAPHICS, "Upscaling", &opts.upscale, 0, 2, 1, tx_upscale,
@@ -356,6 +359,7 @@ int detect_pad_layout() {
 // (afterglow) the rows that only exist under a knob: a hidden row sits in no tab, so the ini never sees it
 void sync_row_tabs(void) {
     for (Row& r : rows) if (r.value == &opts.fps_limit) r.tab = getenv("HOS_FPS_LIMIT_OPT") ? TAB_GRAPHICS : (MenuTab)TAB_COUNT;
+    for (Row& r : rows) if (r.value == &opts.reverb) r.tab = getenv("HOS_REVERB_OPT") ? TAB_GRAPHICS : (MenuTab)TAB_COUNT;
     // (afterglow) the Resolution row shows only under HOS_DISPLAY_MODES, and its range is the modes that exist
     for (Row& r : rows) if (r.value == &opts.display_mode) {
         r.tab = getenv("HOS_DISPLAY_MODES") ? TAB_GRAPHICS : (MenuTab)TAB_COUNT;
@@ -365,6 +369,7 @@ void sync_row_tabs(void) {
 void save() {
     apply_fps_limit();   /* (afterglow) the ini's FPS limit reaches the host's pacing */
     sync_row_tabs();
+    apply_reverb();
     display_mode_from_ini();   // (afterglow) the ini's WxH picks the row's index
     // (afterglow) the lines that are not the menu's are kept: the controls, pad_ and key_ (host/nn_hid.c)
     std::string kept;
