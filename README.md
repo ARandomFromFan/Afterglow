@@ -78,7 +78,7 @@ The overlay (`Insert` or `F1`) sets display, graphics and control options (prese
 - `RX_VK_PRESENT_MODE=0|1|2`: presentation mode (0 = Auto/mailbox default, 1 = VSync/FIFO, 2 = Uncapped/immediate; `RX_VK_FIFO` and `RX_VK_IMMEDIATE` override).
 - `RX_VK_UPSCALE=0|1|2`: upscaling filter (0 = off, 1 = Catmull-Rom, 2 = Lanczos).
 - `RX_VK_MEMO_STAMP=1`: on a bind-memo hit, stamp the buffer's pool as in use, so a pool merge cannot free memory the GPU is still reading (off by default).
-- `RX_VK_EXIT_IDLE=1`: on window close, stop submitting and wait, bounded, for the queued GPU work before the process exits (off by default).
+- `RX_VK_EXIT_IDLE=0`: turns off the bounded wait for queued GPU work on window close, which stops submitting first so a mid-frame exit cannot cut the GPU off (on by default).
 - `HOS_FPS_LIMIT_OPT=1`: shows the FPS limit row in the overlay (Off, 30, 60, 90, 120, 144, 165, 240); the limit paces vsync and applies at once.
 - `HOS_DISPLAY_MODES=1`: lists the display's own modes and shows the Resolution row; the pick is kept as `display_mode=WxH` in `afterglow_options.ini` and applies on restart.
 - `HOS_REVERB_OPT=1`: shows the Reverb row in the overlay; off leaves the audio dry.

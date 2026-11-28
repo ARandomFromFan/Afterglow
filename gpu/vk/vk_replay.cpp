@@ -51,7 +51,7 @@ uint32_t cond_ring_at = 0;
 // shortcut: direct-mapped, an evicted word steps again; use a real set if the log's skip count looks wrong
 static uint64_t occ_cond_words[1 << 16];
 static uint64_t& occ_cond_slot(uint64_t addr) { return occ_cond_words[(addr >> 4) & ((1 << 16) - 1)]; }
-// (RX_VK_EXIT_IDLE=1: set once the window is closing, read by submit_q)
+// (RX_VK_EXIT_IDLE: set once the window is closing, read by submit_q)
 static std::atomic<bool> exit_idle{false};
 
 namespace {
@@ -3486,7 +3486,7 @@ bool replay_behind() {
 
 std::mutex submit_order_mu;   // (captures and submits queued in the same order)
 void submit_q(const uint64_t* handles, int n, uint64_t queue) {
-    // (RX_VK_EXIT_IDLE=1: the window is closing; take no more work, the host is about to wait for the GPU)
+    // (RX_VK_EXIT_IDLE: the window is closing; take no more work, the host is about to wait for the GPU)
     if (exit_idle.load(std::memory_order_relaxed)) return;
     if (!async_on()) {
         std::lock_guard order(sync_order_mu);
@@ -3680,10 +3680,14 @@ bool replay_start() {
     return true;
 }
 
-// (RX_VK_EXIT_IDLE=1: the window closed while the GPU was mid-frame - stop taking submissions, then wait for the work
-// already queued, bounded: whatever the GPU is doing, the exit goes on after the timeout. Off: returns at once.)
+// (the window closed while the GPU was mid-frame - stop taking submissions, then wait for the work already queued,
+// bounded: whatever the GPU is doing, the exit goes on after the timeout. RX_VK_EXIT_IDLE=0: off, returns at once.)
+static bool exit_idle_on() {   // (on by default, RX_VK_EXIT_IDLE=0 turns it off)
+    static const bool on = [] { const char* v = getenv("RX_VK_EXIT_IDLE"); return !v || strcmp(v, "0"); }();
+    return on;
+}
 int renderer_idle(uint64_t timeout_ns) {
-    if (!getenv("RX_VK_EXIT_IDLE")) return 1;
+    if (!exit_idle_on()) return 1;
     exit_idle.store(true, std::memory_order_relaxed);
     const uint64_t f = fence();
     return !f || wait(f, timeout_ns);

@@ -24,7 +24,12 @@
 int rx_start(void *hwnd);
 void rx_resize(int width, int height);
 int hos_sdl_display_modes(int *wh, int max);   /* (host/hos_sdl.c: the display's modes, largest first) */
-int rx_idle(uint64_t timeout_ns);   /* (RX_VK_EXIT_IDLE=1: the renderer stops submitting and waits, bounded) */
+int rx_idle(uint64_t timeout_ns);   /* (RX_VK_EXIT_IDLE: the renderer stops submitting and waits, bounded) */
+static int exit_idle_on(void) {   /* (on by default, RX_VK_EXIT_IDLE=0 turns it off; vk_replay.cpp reads it the same way) */
+    static int on = -1;
+    if (on < 0) { const char* v = getenv("RX_VK_EXIT_IDLE"); on = !v || strcmp(v, "0"); }
+    return on;
+}
 void hos_sdl_pads_pump(void);   /* host/pad_sdl.c: controllers, on this thread, as SDL's queue wants */
 
 volatile LONG64 hos_present_count;   /* (nvn_native.c: the game's presents) */
@@ -277,7 +282,7 @@ void hos_display_loop(void) {
                 switch (e.type) {
                 case HOS_SDL_EV_QUIT:
                 case HOS_SDL_EV_CLOSE:
-                    if (getenv("RX_VK_EXIT_IDLE"))   /* (the GPU is mid-frame: let the renderer go idle first, bounded) */
+                    if (exit_idle_on())   /* (the GPU is mid-frame: let the renderer go idle first, bounded) */
                         hos_log("display: window closed, renderer %s", rx_idle(2000000000ull) ? "idle" : "still busy, exiting anyway");
                     hos_log("display: window closed, exiting");
                     hos_log_flush();

@@ -287,7 +287,7 @@ int rx_prepare_shaders(void) {
     return r && r->start(NULL);
 }
 void rx_resize(int width, int height) { vk ? vk->resize(width, height) : wgr_resize(width, height); }
-/* (RX_VK_EXIT_IDLE=1: the window closed mid-frame; the Vulkan back end stops taking work and waits, bounded) */
+/* (RX_VK_EXIT_IDLE: the window closed mid-frame; the Vulkan back end stops taking work and waits, bounded) */
 int rx_idle(uint64_t timeout_ns) { return vk && vk->idle ? vk->idle(timeout_ns) : 1; }
 const char *rx_describe(void) { return vk ? vk->describe() : wgr_describe(); }
 void rx_stats(int64_t *draws, int64_t *skipped, int64_t *pipelines) {

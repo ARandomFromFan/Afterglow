@@ -148,7 +148,7 @@ typedef struct AgVkRenderer {
     /* (afterglow, the Insert menu) a setting changed from the game's side, kept in the options file: 7 the mouse's sensitivity
        in percent (the - and = keys, host/nn_hid.c) */
     void (*option_set)(int id, int value);
-    /* (RX_VK_EXIT_IDLE=1: stop taking submissions and wait for the queued GPU work, bounded; nonzero when idle) */
+    /* (RX_VK_EXIT_IDLE: stop taking submissions and wait for the queued GPU work, bounded; nonzero when idle) */
     int (*idle)(uint64_t timeout_ns);
 } AgVkRenderer;
 
