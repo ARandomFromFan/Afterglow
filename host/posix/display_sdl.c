@@ -23,6 +23,7 @@
 
 int rx_start(void *hwnd);
 void rx_resize(int width, int height);
+int hos_sdl_display_modes(int *wh, int max);   /* (host/hos_sdl.c: the display's modes, largest first) */
 int rx_idle(uint64_t timeout_ns);   /* (RX_VK_EXIT_IDLE=1: the renderer stops submitting and waits, bounded) */
 void hos_sdl_pads_pump(void);   /* host/pad_sdl.c: controllers, on this thread, as SDL's queue wants */
 
@@ -220,13 +221,31 @@ void hos_display_loop(void) {
     int ws_idx = hos_ini_option("window_size", 0);
     int win_w = (ws_idx >= 0 && ws_idx < 4) ? win_sizes[ws_idx][0] : 1280;
     int win_h = (ws_idx >= 0 && ws_idx < 4) ? win_sizes[ws_idx][1] : 720;
-    if (hos_aspect_ratio > 1.8f) win_w = (int)(win_h * hos_aspect_ratio + 0.5f);
+    /* (HOS_DISPLAY_MODES=1: the display's own modes are listed once, and the ini's display_mode=WxH picks the window from
+       them; off: the four presets above, as before. Applies after a restart either way.) */
+    if (getenv("HOS_DISPLAY_MODES") && atoi(getenv("HOS_DISPLAY_MODES")) != 0) {
+        int modes[64 * 2];
+        const int count = hos_sdl_display_modes(modes, 64);
+        char line[600];
+        int k = 0;
+        for (int i = 0; i < count && k < (int)sizeof line - 24; i++)
+            k += snprintf(line + k, sizeof line - k, "%s%dx%d", i ? " " : "", modes[i * 2], modes[i * 2 + 1]);
+        hos_log("display: modes %s", count ? line : "(none: headless or no mode list)");
+        char want[64];
+        int w = 0, h = 0;
+        if (hos_ini_text("display_mode", want, sizeof want) && sscanf(want, "%dx%d", &w, &h) == 2 && w >= 64 && h >= 64)
+            win_w = w, win_h = h;
+    }
+    const char *size_src = "window_size";
+    if (getenv("HOS_DISPLAY_MODES") && atoi(getenv("HOS_DISPLAY_MODES")) != 0) size_src = "display_mode";
+    if (hos_aspect_ratio > 1.8f) win_w = (int)(win_h * hos_aspect_ratio + 0.5f), size_src = "aspect ratio";
     const char *env_ws = getenv("HOS_WINDOW_SIZE");
     if (env_ws) {
         int w = 0, h = 0;
-        if (sscanf(env_ws, "%dx%d", &w, &h) == 2 && w >= 64 && h >= 64) win_w = w, win_h = h;
-        else if (atoi(env_ws) >= 0 && atoi(env_ws) < 4) win_w = win_sizes[atoi(env_ws)][0], win_h = win_sizes[atoi(env_ws)][1];
+        if (sscanf(env_ws, "%dx%d", &w, &h) == 2 && w >= 64 && h >= 64) win_w = w, win_h = h, size_src = "HOS_WINDOW_SIZE";
+        else if (atoi(env_ws) >= 0 && atoi(env_ws) < 4) win_w = win_sizes[atoi(env_ws)][0], win_h = win_sizes[atoi(env_ws)][1], size_src = "HOS_WINDOW_SIZE";
     }
+    hos_log("display: window %dx%d (%s)", win_w, win_h, size_src);   /* (afterglow) which source chose the size */
     window = hos_sdl_window(HOS_GAME_TITLE, win_w, win_h);
     if (!window) {
         hos_log("display: SDL_CreateWindow: %s: no window", hos_sdl_error());

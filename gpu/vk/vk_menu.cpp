@@ -155,6 +155,24 @@ static const int fps_limit_hz[8] = {0, 30, 60, 90, 120, 144, 165, 240};   /* (af
 void apply_fps_limit(void) {
     if (host && host->set_fps_limit) host->set_fps_limit(fps_limit_hz[std::min(std::max(opts.fps_limit, 0), 7)]);
 }
+// (afterglow) the display's own modes, largest first: the host lists them (HOS_DISPLAY_MODES=1), the row picks one and
+// the ini keeps it as display_mode=WxH because that is what host/posix/display_sdl.c parses.
+static int disp_modes[64][2];
+static int disp_count = -1;
+static bool disp_mode_known = false;   /* (afterglow) the ini named a mode that exists: only then is the key written back */
+int display_mode_count(void) {
+    if (disp_count < 0) disp_count = (host && host->display_modes) ? host->display_modes(&disp_modes[0][0], 64) : 0;
+    return disp_count;
+}
+const char* tx_display_mode(int v) {
+    static char b[32];
+    const int n = display_mode_count();
+    if (!n) return "Default";
+    const int i = std::min(std::max(v, 0), n - 1);
+    snprintf(b, sizeof b, "%dx%d", disp_modes[i][0], disp_modes[i][1]);
+    return b;
+}
+void display_mode_from_ini(void);   /* (afterglow) defined below, ini_path() is there */
 Row rows[] = {
     // Graphics (12 rows)
     {TAB_GRAPHICS, "Quality preset", &opts.preset, 0, 5, 1, tx_preset,
@@ -174,6 +192,8 @@ Row rows[] = {
      "Auto picks mailbox when available. VSync waits for the display. Uncapped presents frames immediately."},
     {TAB_GRAPHICS, "FPS limit", &opts.fps_limit, 0, 7, 1, tx_fps_limit,
      "The frame rate the game is paced at. Off leaves it uncapped; the steps pace vsync at their rate."},
+    {TAB_GRAPHICS, "Resolution", &opts.display_mode, 0, 63, 1, tx_display_mode,
+     "The display mode the game runs in, from the display's own list. Applies after a restart."},
     {TAB_GRAPHICS, "Render scale", &opts.render_scale, 0, 2, 1, tx_render_scale,
      "The internal resolution the game renders at: 100% (1080p), 80% (864p), or 67% (720p). Applies after a restart."},
     {TAB_GRAPHICS, "Upscaling", &opts.upscale, 0, 2, 1, tx_upscale,
@@ -276,6 +296,24 @@ const char* ini_key(const Row& r) {
     k[n] = 0;
     return k;
 }
+// (afterglow) the ini's display_mode=WxH -> the row's index, so the menu opens on the mode in force
+void display_mode_from_ini(void) {
+    const int n = display_mode_count();
+    if (!n) return;
+    std::string path = ini_path();   /* (ini_path is defined below the rows) */
+    if (FILE* f = fopen(path.c_str(), "r")) {
+        char line[256];
+        while (fgets(line, sizeof line, f))
+            if (!strncmp(line, "display_mode=", 13)) {
+                int w = 0, h = 0;
+                if (sscanf(line + 13, "%dx%d", &w, &h) == 2)
+                    for (int i = 0; i < n; i++)
+                        if (disp_modes[i][0] == w && disp_modes[i][1] == h) { opts.display_mode = i; disp_mode_known = true; }
+                break;
+            }
+        fclose(f);
+    }
+}
 // (afterglow) the controls, kept by the host (host/nn_hid.c reads them back from here): pad_<button>, key_<button>
 const char* const bind_names[HOS_KEY_N] = {"a", "b", "x", "y", "ls", "rs", "l", "r", "zl", "zr", "plus", "minus",
                                            "left", "up", "right", "down", "move_up", "move_down", "move_left",
@@ -318,10 +356,16 @@ int detect_pad_layout() {
 // (afterglow) the rows that only exist under a knob: a hidden row sits in no tab, so the ini never sees it
 void sync_row_tabs(void) {
     for (Row& r : rows) if (r.value == &opts.fps_limit) r.tab = getenv("HOS_FPS_LIMIT_OPT") ? TAB_GRAPHICS : (MenuTab)TAB_COUNT;
+    // (afterglow) the Resolution row shows only under HOS_DISPLAY_MODES, and its range is the modes that exist
+    for (Row& r : rows) if (r.value == &opts.display_mode) {
+        r.tab = getenv("HOS_DISPLAY_MODES") ? TAB_GRAPHICS : (MenuTab)TAB_COUNT;
+        r.hi = std::max(display_mode_count() - 1, 0);
+    }
 }
 void save() {
     apply_fps_limit();   /* (afterglow) the ini's FPS limit reaches the host's pacing */
     sync_row_tabs();
+    display_mode_from_ini();   // (afterglow) the ini's WxH picks the row's index
     // (afterglow) the lines that are not the menu's are kept: the controls, pad_ and key_ (host/nn_hid.c)
     std::string kept;
     if (FILE* f = fopen(ini_path().c_str(), "r")) {
@@ -333,7 +377,11 @@ void save() {
     if (FILE* f = fopen(ini_path().c_str(), "w")) {
         for (const Row& r : rows) {
             if (r.tab >= TAB_COUNT) continue;   /* (afterglow) a hidden row never writes the ini */
-            if (r.value) fprintf(f, "%s=%d\n", ini_key(r), *r.value);
+            if (r.value == &opts.display_mode) {   /* (afterglow) the host parses WxH; written only for a known mode,
+                                                      so a menu save never invents one (index 0 is the largest) */
+                const int n = display_mode_count(), i = std::min(std::max(opts.display_mode, 0), n > 0 ? n - 1 : 0);
+                if (n > 0 && disp_mode_known && getenv("HOS_DISPLAY_MODES")) fprintf(f, "display_mode=%dx%d\n", disp_modes[i][0], disp_modes[i][1]);
+            } else if (r.value) fprintf(f, "%s=%d\n", ini_key(r), *r.value);
         }
         // (2: game_speed below 2 was only ever the old default, see menu_init; 3: the mouse's buttons are bindings, see
         // host/nn_hid.c binds_load)
@@ -1225,6 +1273,7 @@ void menu_tick() {
         if ((press[3] || press[4] || press[7]) && r.value) {   // (Enter, or the bottom face button, as Right)
             if (press[7]) press[4] = true;
             set_row(r, *r.value + (press[4] ? r.step : -r.step), press[4] ? 1 : -1);
+            if (r.value == &opts.display_mode) disp_mode_known = true;   /* (afterglow) a pick in the menu is a mode the user wants kept */
             changed = true;
         }
         const int64_t now = prof_now();

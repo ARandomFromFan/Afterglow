@@ -82,6 +82,29 @@ static inline DWORD hos_game_path_a(char *buf, DWORD size) {
 }
 #endif
 
+/* (the same file, a text value: the line's value as it stands, minus the newline) */
+static inline int hos_ini_text(const char *key, char *out, size_t size) {
+    char path[MAX_PATH];
+    const DWORD n = hos_game_path_a(path, MAX_PATH);
+    char *slash = n ? (strrchr(path, 92) ? strrchr(path, 92) : strrchr(path, 47)) : NULL;
+    if (!slash || size == 0) return 0;
+    snprintf(slash + 1, (size_t)(path + MAX_PATH - slash - 1), "afterglow_options.ini");
+    FILE *f = fopen(path, "r");
+    if (!f) return 0;
+    char line[128];
+    const size_t len = strlen(key);
+    int found = 0;
+    while (fgets(line, sizeof line, f))
+        if (!strncmp(line, key, len) && line[len] == '=') {
+            size_t v = strlen(line + len + 1);
+            while (v && (line[len + 1 + v - 1] == '\n' || line[len + 1 + v - 1] == '\r')) v--;
+            if (v >= size) v = size - 1;
+            memcpy(out, line + len + 1, v), out[v] = 0, found = 1;
+        }
+    fclose(f);
+    return found;
+}
+
 /* The Insert menu's options (afterglow_options.ini beside the executable or game folder) */
 static inline int hos_ini_option(const char *key, int otherwise) {
     char path[MAX_PATH];

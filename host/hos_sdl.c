@@ -162,6 +162,59 @@ int hos_sdl_desktop_size(int *width, int *height) {
     *width = m.w, *height = m.h;
     return 1;
 }
+/* (the display's modes as W x H pairs, largest first, de-duplicated; returns how many, 0 when headless or the SDL in use
+   has no mode list. SDL3: SDL_GetFullscreenDisplayModes; SDL2: SDL_GetNumDisplayModes + SDL_GetDisplayMode.) */
+int hos_sdl_display_modes(int *wh, int max) {
+    if (!hos_sdl_load() || !wh || max <= 0) return 0;
+    static void *get_modes, *num_modes, *get_mode;
+    static int looked;
+    if (!looked) {
+        looked = 1;
+        HMODULE m = load_one(version == 3 ? "SDL3.dll" : "SDL2.dll");
+        if (m) {
+            get_modes = (void *)GetProcAddress(m, "SDL_GetFullscreenDisplayModes");
+            num_modes = (void *)GetProcAddress(m, "SDL_GetNumDisplayModes");
+            get_mode = (void *)GetProcAddress(m, "SDL_GetDisplayMode");
+        }
+    }
+    int found[64][2], n = 0;
+    if (version == 3 && get_modes) {
+        int count = 0;
+        const uint8_t *const *list = ((const uint8_t *const *(*)(uint32_t, int *))get_modes)(
+            CALL(uint32_t (*)(void), GetPrimaryDisplay)(), &count);
+        for (int i = 0; list && i < count && n < 64; i++) {
+            int w, h;
+            float density;
+            memcpy(&w, list[i] + 8, 4), memcpy(&h, list[i] + 12, 4), memcpy(&density, list[i] + 16, 4);
+            if (!(density > 0)) density = 1;
+            found[n][0] = (int)(w * density + 0.5f), found[n][1] = (int)(h * density + 0.5f), n++;
+        }
+        if (list && f.Free) CALL(void (*)(void *), Free)((void *)list);
+    } else if (version == 2 && num_modes && get_mode) {
+        const int count = ((int (*)(int))num_modes)(0);
+        for (int i = 0; i < count && n < 64; i++) {
+            struct { uint32_t format; int w, h, refresh_rate; void *driverdata; } m;
+            if (((int (*)(int, int, void *))get_mode)(0, i, &m)) continue;
+            found[n][0] = m.w, found[n][1] = m.h, n++;
+        }
+    }
+    /* largest first, one entry per size */
+    for (int i = 1; i < n; i++)
+        for (int j = i; j > 0 && (long long)found[j][0] * found[j][1] > (long long)found[j - 1][0] * found[j - 1][1]; j--) {
+            const int a = found[j][0], b = found[j][1];
+            found[j][0] = found[j - 1][0], found[j][1] = found[j - 1][1];
+            found[j - 1][0] = a, found[j - 1][1] = b;
+        }
+    int k = 0;
+    for (int i = 0; i < n && k < max; i++) {
+        int dup = 0;
+        for (int j = 0; j < k; j++)
+            if (wh[j * 2] == found[i][0] && wh[j * 2 + 1] == found[i][1]) dup = 1;
+        if (!dup) wh[k * 2] = found[i][0], wh[k * 2 + 1] = found[i][1], k++;
+    }
+    return k;
+}
+
 int hos_sdl_vulkan_surface(void *window, void *instance, void *surface_out) {
     return version == 3 ? CALL(_Bool (*)(void *, void *, const void *, void *), Vulkan_CreateSurface)(window, instance, NULL, surface_out)
                         : CALL(int (*)(void *, void *, void *), Vulkan_CreateSurface)(window, instance, surface_out) != 0;
