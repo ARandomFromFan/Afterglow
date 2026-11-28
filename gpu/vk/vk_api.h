@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-#define AGVK_API_VERSION 8
+#define AGVK_API_VERSION 9
 
 /* (afterglow) the controls' names (host/nn_hid.c, host/pad_sdl.c, the pad_ and key_ lines of afterglow_options.ini):
    the Switch's buttons in nn::hid's bit order, and a gamepad's inputs by position, SDL's order (the bottom face
@@ -99,6 +99,7 @@ typedef struct AgVkHost {
        window, wParam 1 open, 0 closed (the capture it had then comes back) */
     int (*pointer)(AgVkPointer *out);
     int (*gpu_vmaps)(AgVkVmap *out, int max);
+    void (*set_fps_limit)(int hz);   /* (afterglow) the Insert menu's FPS limit: nn_vi.c paces vsync at it, 0 uncapped */
 } AgVkHost;
 
 /* what the back end gives the executable: the rx_* functions (gpu/render/rx_nvn.h, rx_core) */

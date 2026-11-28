@@ -79,6 +79,7 @@ The overlay (`Insert` or `F1`) sets display, graphics and control options (prese
 - `RX_VK_UPSCALE=0|1|2`: upscaling filter (0 = off, 1 = Catmull-Rom, 2 = Lanczos).
 - `RX_VK_MEMO_STAMP=1`: on a bind-memo hit, stamp the buffer's pool as in use, so a pool merge cannot free memory the GPU is still reading (off by default).
 - `RX_VK_EXIT_IDLE=1`: on window close, stop submitting and wait, bounded, for the queued GPU work before the process exits (off by default).
+- `HOS_FPS_LIMIT_OPT=1`: shows the FPS limit row in the overlay (Off, 30, 60, 90, 120, 144, 165, 240); the limit paces vsync and applies at once.
 
 `RX_VK_SSBO_PAIR_BARE=0` turns off the fix for one-frame flashes of the scene over the HUD (on by default): storage buffer pointers packed 8 bytes apart are bound up to the end of their pool instead of reading the next word as a size.
 

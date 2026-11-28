@@ -146,6 +146,15 @@ void apply_preset(int p) {
     sync_preset_budgets(p);
 }
 
+// (afterglow) the FPS limit: the row keeps an index, the host is told Hz; index 0 is uncapped.
+const char* tx_fps_limit(int v) {
+    static const char* t[] = {"Off", "30", "60", "90", "120", "144", "165", "240"};
+    return t[std::min(std::max(v, 0), 7)];
+}
+static const int fps_limit_hz[8] = {0, 30, 60, 90, 120, 144, 165, 240};   /* (afterglow) 0: uncapped */
+void apply_fps_limit(void) {
+    if (host && host->set_fps_limit) host->set_fps_limit(fps_limit_hz[std::min(std::max(opts.fps_limit, 0), 7)]);
+}
 Row rows[] = {
     // Graphics (12 rows)
     {TAB_GRAPHICS, "Quality preset", &opts.preset, 0, 5, 1, tx_preset,
@@ -163,6 +172,8 @@ Row rows[] = {
      "Shows each frame at an even interval instead of as soon as it is ready. Less stutter, at up to one frame of delay."},
     {TAB_GRAPHICS, "Present mode", &opts.present_mode, 0, 2, 1, tx_present_mode,
      "Auto picks mailbox when available. VSync waits for the display. Uncapped presents frames immediately."},
+    {TAB_GRAPHICS, "FPS limit", &opts.fps_limit, 0, 7, 1, tx_fps_limit,
+     "The frame rate the game is paced at. Off leaves it uncapped; the steps pace vsync at their rate."},
     {TAB_GRAPHICS, "Render scale", &opts.render_scale, 0, 2, 1, tx_render_scale,
      "The internal resolution the game renders at: 100% (1080p), 80% (864p), or 67% (720p). Applies after a restart."},
     {TAB_GRAPHICS, "Upscaling", &opts.upscale, 0, 2, 1, tx_upscale,
@@ -304,7 +315,13 @@ int detect_pad_layout() {
     if (a == HOS_PAD_SOUTH && b == HOS_PAD_EAST && x == HOS_PAD_NORTH && y == HOS_PAD_WEST) return 2;
     return 3;
 }
+// (afterglow) the rows that only exist under a knob: a hidden row sits in no tab, so the ini never sees it
+void sync_row_tabs(void) {
+    for (Row& r : rows) if (r.value == &opts.fps_limit) r.tab = getenv("HOS_FPS_LIMIT_OPT") ? TAB_GRAPHICS : (MenuTab)TAB_COUNT;
+}
 void save() {
+    apply_fps_limit();   /* (afterglow) the ini's FPS limit reaches the host's pacing */
+    sync_row_tabs();
     // (afterglow) the lines that are not the menu's are kept: the controls, pad_ and key_ (host/nn_hid.c)
     std::string kept;
     if (FILE* f = fopen(ini_path().c_str(), "r")) {
@@ -314,8 +331,10 @@ void save() {
         fclose(f);
     }
     if (FILE* f = fopen(ini_path().c_str(), "w")) {
-        for (const Row& r : rows)
+        for (const Row& r : rows) {
+            if (r.tab >= TAB_COUNT) continue;   /* (afterglow) a hidden row never writes the ini */
             if (r.value) fprintf(f, "%s=%d\n", ini_key(r), *r.value);
+        }
         // (2: game_speed below 2 was only ever the old default, see menu_init; 3: the mouse's buttons are bindings, see
         // host/nn_hid.c binds_load)
         fprintf(f, "options_version=3\n");
@@ -850,6 +869,7 @@ void menu_init() {
     if (done) return;
     done = true;
     bool has_options = false;
+    sync_row_tabs();   /* (afterglow) before the ini is read: a hidden row does not read it either */
     if (FILE* f = fopen(ini_path().c_str(), "r")) {
         has_options = true;
         char line[80];
@@ -859,7 +879,7 @@ void menu_init() {
             if (!eq) continue;
             *eq = 0;
             for (Row& r : rows)
-                if (r.value && !strcmp(line, ini_key(r))) *r.value = std::min(std::max(atoi(eq + 1), r.lo), r.hi);
+                if (r.value && r.tab < TAB_COUNT && !strcmp(line, ini_key(r))) *r.value = std::min(std::max(atoi(eq + 1), r.lo), r.hi);
             v2 |= !strcmp(line, "options_version");
         }
         fclose(f);
@@ -900,6 +920,7 @@ void menu_init() {
     if (const char* e = getenv("RX_VK_PRESENT_MODE")) opts.present_mode = std::min(std::max(atoi(e), 0), 2);
     if (getenv("RX_VK_FIFO")) opts.present_mode = 1;
     if (getenv("RX_VK_IMMEDIATE")) opts.present_mode = 2;
+    apply_fps_limit();
 }
 
 

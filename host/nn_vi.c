@@ -17,21 +17,39 @@ static volatile LONG nvsync;
 static HANDLE vsync_thread;
 
 /* HOS_VSYNC_HZ: vsync and present pacing rate, 30-240 (default 60) */
+/* (afterglow) HOS_VSYNC_HZ wins if set (tests); else under HOS_FPS_LIMIT_OPT the Insert menu's limit is read every call, so
+   a change applies live; else 60. The env part is cached, the menu's is not. */
+extern volatile int hos_fps_limit;
 static int vsync_hz(void) {
-    static int vhz = -1;
-    if (vhz < 0) {
-        vhz = getenv("HOS_VSYNC_HZ") ? atoi(getenv("HOS_VSYNC_HZ")) : 60;
-        if (vhz < 30) vhz = 30;
-        if (vhz > 240) vhz = 240;
+    static int src = -2;   /* -2 unread, >0 the env's rate, 0 the menu's, -1 neither (60) */
+    if (src == -2) {
+        if (getenv("HOS_VSYNC_HZ")) {
+            src = atoi(getenv("HOS_VSYNC_HZ"));
+            if (src < 30) src = 30;
+            if (src > 240) src = 240;
+        } else src = getenv("HOS_FPS_LIMIT_OPT") ? 0 : -1;
     }
-    return vhz;
+    if (src > 0) return src;
+    if (src == 0) {
+        const int hz = hos_fps_limit;
+        if (hz > 0) return hz;
+        if (hz == 0) return 240;   /* (afterglow) Off: the ticker keeps running, the acquire does not wait */
+    }
+    return 60;
 }
 
 static DWORD WINAPI vsync_main(void *p) {
     (void)p;
-    const int64_t period = 1000000000LL / vsync_hz();
+    int64_t period = 1000000000LL / vsync_hz();
     int64_t next = hos_now_ns() + period;
+    hos_log("vsync: %d Hz", (int)(1000000000LL / period));   /* (afterglow) once at start; again when it changes */
     for (;;) {
+        const int64_t want = 1000000000LL / vsync_hz();   /* (afterglow) the limit can change while it runs */
+        if (want != period) {
+            period = want;
+            hos_log("vsync: %d Hz", (int)(1000000000LL / period));
+            if (next > hos_now_ns() + period) next = hos_now_ns() + period;
+        }
         const int64_t now = hos_now_ns();
         if (next > now) hos_sleep_ns(next - now);
         next += period;
@@ -142,7 +160,9 @@ void hos_vi_native_acquire(int active) {
     static int no_pacing = -1, double_buffered = -1;
     if (no_pacing < 0) no_pacing = getenv("HOS_NO_PACING") != NULL;
     if (double_buffered < 0) double_buffered = getenv("HOS_VI_DOUBLE") != NULL;
-    if (no_pacing || !next_frame_at) return;
+    extern volatile int hos_fps_limit;   /* (afterglow) Off (0) is uncapped, read every frame like the limit */
+    const int hz = hos_fps_limit;
+    if (no_pacing || hz == 0 || !next_frame_at) return;
     int64_t until = next_frame_at;
     if (!double_buffered && active >= 2) {
         const int64_t n = shown_count, frame = n - active + 1;   /* (the frame whose showing frees this texture) */

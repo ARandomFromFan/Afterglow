@@ -53,6 +53,16 @@ int nvn_gpu_vmaps(AgVkVmap *out, int max);
 uint64_t hos_reserved_cpus(void);   /* hos_thread.c */
 extern float hos_aspect_ratio;      /* hos_main.c: the guest camera aspect applied at startup, or 0 */
 uint32_t hos_pad_raw(void);         /* nn_hid.c: the gamepads and the controls, for the Insert menu */
+/* (afterglow) the Insert menu's FPS limit in Hz, read by nn_vi.c's vsync thread: 0 uncapped */
+volatile int hos_fps_limit = 60;
+/* (afterglow) the setter ignores calls unless the knob is set, so an ini left over from a knobs-on session cannot change
+   today's behaviour: hos_fps_limit stays 60. The getenv is read once. */
+static int opt_knob(void) {
+    static int on = -1;
+    if (on < 0) on = getenv("HOS_FPS_LIMIT_OPT") != NULL;
+    return on;
+}
+static void hos_set_fps_limit(int hz) { if (!opt_knob()) return; hos_fps_limit = hz < 0 ? 0 : (hz > 240 ? 240 : hz); }
 int hos_binding(int set, int button, int slot);
 void hos_bind(int set, int button, int slot, int code);
 #if defined(A64_WRITE_TRACK) && !defined(__EMSCRIPTEN__)
@@ -157,7 +167,7 @@ static const AgVkHost vk_host = {
     nvn_tex_level_offset, nvn_fmt_bpb, nvn_tex_level_tiles, nvn_tex_linear_stride, nvn_depth_minus_w, hos_gpu_pools,
     hos_gpu_maps_generation, nvn_vmap_generation, hos_reserved_cpus, host_collect_in, host_guest_alloc,
     host_watch_guest_writes, hos_pad_raw, hos_binding, hos_bind, host_aspect_ratio, host_take_key_press,
-    hos_mouse_pointer, nvn_gpu_vmaps,
+    hos_mouse_pointer, nvn_gpu_vmaps, hos_set_fps_limit,
 };
 
 static const AgVkRenderer *vk;   /* the Vulkan back end, when it was chosen and started */

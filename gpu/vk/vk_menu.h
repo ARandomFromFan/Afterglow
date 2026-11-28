@@ -16,6 +16,7 @@ struct Options {
     int handheld = 0;     // the game's handheld profile: ~4 fps, softer; read once, at the start (host/nn_applet.c)
     int ultrawide = 0;    // the camera at the monitor's shape when it is wider than 16:9; read once, at the start (host/hos_main.c)
     int show_fps = 0;
+    int fps_limit = 2;    // (afterglow) index into the FPS limit's steps: 0 Off (uncapped), 2 60 Hz, 3 90 ... 7 240
     int window_mode = 0;  // 0: Windowed, 1: Borderless fullscreen, 2: Exclusive fullscreen
     int window_size = 0;  // 0: 1280x720 default, 1: 1920x1080, 2: 2560x1440, 3: 3840x2160 (windowed only)
     int present_mode = 0; // 0: Auto (mailbox), 1: VSync (FIFO), 2: Uncapped (immediate)
