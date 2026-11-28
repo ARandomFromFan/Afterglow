@@ -85,6 +85,8 @@ The overlay (`Insert` or `F1`) sets display, graphics and control options (prese
 
 `RX_VK_SSBO_PAIR_BARE=0` turns off the fix for one-frame flashes of the scene over the HUD (on by default): storage buffer pointers packed 8 bytes apart are bound up to the end of their pool instead of reading the next word as a size.
 
+`RX_VK_SSBO_STRETCH=0` turns off the fix for single-frame scene brightness swings (on by default): a read-only storage buffer whose size word is short is bound to the end of its pool, up to 64 MB, so the reads past the size word see their data instead of zero.
+
 ## Contributing
 
 Help is welcome and really appreciated, whether it's code, testing or bug reports.
